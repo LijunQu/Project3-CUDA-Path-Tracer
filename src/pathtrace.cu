@@ -260,14 +260,20 @@ __global__ void shadeFakeMaterial(
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
                 pathSegments[idx].color *= (materialColor * material.emittance);
+                pathSegments[idx].remainingBounces = 0;
             }
             // Otherwise, do some pseudo-lighting computation. This is actually more
             // like what you would expect from shading in a rasterizer like OpenGL.
             // TODO: replace this! you should be able to start with basically a one-liner
             else {
                 float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-                pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-                pathSegments[idx].color *= u01(rng); // apply some noise because why not
+                glm::vec3 intersect = intersection.t * pathSegments[idx].ray.direction + pathSegments[idx].ray.origin;
+                scatterRay(pathSegments[idx], intersect, intersection.surfaceNormal, material, rng);
+
+                --pathSegments[idx].remainingBounces;
+                
+                //pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
+                //pathSegments[idx].color *= u01(rng); // apply some noise because why not
             }
             // If there was no intersection, color the ray black.
             // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -276,6 +282,7 @@ __global__ void shadeFakeMaterial(
         }
         else {
             pathSegments[idx].color = glm::vec3(0.0f);
+            pathSegments[idx].remainingBounces = 0;
         }
     }
 }
@@ -291,6 +298,53 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
         image[iterationPath.pixelIndex] += iterationPath.color;
     }
 }
+
+
+
+__global__ void computeBSDF(int iter,
+    int nPaths,
+    ShadeableIntersection* shadeableIntersections,
+    PathSegment* pathSegments,
+    Material* materials)
+{
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+    
+    if (index >= nPaths) return;
+
+    PathSegment pathSeg = pathSegments[index];
+    ShadeableIntersection shadInt = shadeableIntersections[index];
+
+    if (shadInt.t < 0.0f) {
+        pathSeg.remainingBounces = 0;
+        pathSeg.color = glm::vec3(0.0f);
+    }
+    else {
+        Material mat = materials[shadInt.materialId];
+
+        if (mat.emittance > 0.f) {
+            pathSeg.remainingBounces = 0;
+            pathSeg.color *= mat.emittance * mat.color;
+        }
+        else {
+            --pathSeg.remainingBounces;
+            if (pathSeg.remainingBounces >= 0) {
+                
+                scatterRay(pathSeg, shadInt.t * pathSeg.ray.direction, shadInt.surfaceNormal, mat, makeSeededRandomEngine(iter, index, 0));
+            }
+            else {
+                pathSeg.color = glm::vec3(0.0f);
+            }
+
+        }
+
+
+    }
+    
+
+
+}
+
+
 
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -394,6 +448,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         {
             guiData->TracedDepth = depth;
         }
+
+
     }
 
     // Assemble this iteration and apply it to the image
