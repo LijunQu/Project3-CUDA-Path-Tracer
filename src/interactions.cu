@@ -111,7 +111,7 @@ __host__ __device__ void bsdf_specular(PathSegment& pathSegment,
     thrust::default_random_engine& rng)
 {
 
-    glm::vec3 dir = cosineSampleHemisphere(normal, rng);
+    glm::vec3 dir = calculateRandomDirectionInHemisphere(normal, rng);
     pathSegment.ray.origin = intersect + EPSILON * normal;
     //pathSegment.ray.direction = dir;
     pathSegment.ray.direction = dir;
@@ -129,13 +129,13 @@ __host__ __device__ void bsdf_diffuse(PathSegment& pathSegment,
     thrust::default_random_engine& rng)
 {
 
-    glm::vec3 dir = cosineSampleHemisphere(normal, rng);
+    glm::vec3 dir = calculateRandomDirectionInHemisphere(normal, rng);
     pathSegment.ray.origin = intersect + EPSILON * normal;
     //pathSegment.ray.direction = dir;
     pathSegment.ray.direction = dir;
 
     bsdf_pdf(pathSegment, normal, pdf);
-    pathSegment.color *= m.color / PI;
+    pathSegment.color *= m.color;
 }
 
 

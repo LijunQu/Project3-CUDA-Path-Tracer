@@ -79,3 +79,18 @@ __host__ __device__ void scatterRay(
     glm::vec3 normal,
     const Material& m,
     thrust::default_random_engine& rng);
+
+
+//__host__ __device__ bool samplePointOnLight(const Geom* geoms, const Material* mats,
+//    const int* lightIDs, const float* lightAreas, int numLights,
+//    thrust::default_random_engine& rng,
+//    glm::vec3& xL, glm::vec3& nL, glm::vec3& Le,
+//    int& pickedLight, float& pdfA /*area pdf for the chosen light*/);
+//__host__ __device__ float lightPdfSolidAngle(const glm::vec3& x, const glm::vec3& wi,
+//    const glm::vec3& xL, const glm::vec3& nL,
+//    float pdfA /*area pdf for chosen light*/);
+//__host__ __device__ float bsdfPdfLambert(const glm::vec3& n, const glm::vec3& wi);   // cos/PI
+//__host__ __device__ glm::vec3 bsdfEvalLambert(const glm::vec3& albedo);              // albedo/PI
+//
+//__host__ __device__ bool visibleShadow(const glm::vec3& x, const glm::vec3& wi, float tMax,
+//    const Geom* geoms, int geoms_size);

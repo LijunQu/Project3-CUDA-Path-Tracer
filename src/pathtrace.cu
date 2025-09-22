@@ -52,7 +52,7 @@ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int de
 }
 
 //Kernel that writes the image to the OpenGL PBO directly.
-/*
+
 __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image)
 {
     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -75,7 +75,8 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
         pbo[index].z = color.z;
     }
 }
-*/
+
+/*
 __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -101,6 +102,133 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 
     pbo[index] = make_uchar4(color.x, color.y, color.z, 0);
 }
+*/
+
+
+
+//__host__ __device__ inline glm::vec3 xformPoint(const glm::mat4& M, const glm::vec3& p) {
+//    glm::vec4 q = M * glm::vec4(p, 1.f);
+//    return glm::vec3(q) / q.w;
+//}
+//__host__ __device__ inline glm::vec3 xformNormal(const glm::mat4& IT, const glm::vec3& n) {
+//    return glm::normalize(glm::vec3(IT * glm::vec4(n, 0.f)));
+//}
+//
+//// Pick a light index proportional to area
+//__host__ __device__ int pickLightByArea(const float* areas, int n, thrust::default_random_engine& rng) {
+//    thrust::uniform_real_distribution<float> u(0.f, 1.f);
+//    float sum = 0.f; for (int i = 0; i < n; ++i) sum += areas[i];
+//    float r = u(rng) * sum, acc = 0.f;
+//    for (int i = 0; i < n; ++i) { acc += areas[i]; if (r <= acc) return i; }
+//    return n - 1;
+//}
+//
+//// Sample a point uniformly on a box (unit cube in local space)
+//__host__ __device__ void sampleCubeSurface(const Geom& g, thrust::default_random_engine& rng,
+//    glm::vec3& xL, glm::vec3& nL, float& pdfA) {
+//    thrust::uniform_real_distribution<float> u(0.f, 1.f);
+//    // face areas from transformed axes
+//    glm::vec3 ex = glm::vec3(g.transform * glm::vec4(1, 0, 0, 0));
+//    glm::vec3 ey = glm::vec3(g.transform * glm::vec4(0, 1, 0, 0));
+//    glm::vec3 ez = glm::vec3(g.transform * glm::vec4(0, 0, 1, 0));
+//    float Lx = glm::length(ex), Ly = glm::length(ey), Lz = glm::length(ez);
+//    float Axy = Lx * Ly, Ayz = Ly * Lz, Azx = Lz * Lx;
+//    float total = 2.f * (Axy + Ayz + Azx);
+//
+//    float r = u(rng) * total;
+//    int face = 0; // 0..5
+//    if ((r -= 2.f * Axy) > 0.f) {
+//        if ((r -= 2.f * Ayz) > 0.f) face = 4 + (r > Azx ? 1 : 0);
+//        else                      face = 2 + (r > Ayz ? 1 : 0); // +/-X faces (actually we’ll set per case below)
+//    }
+//    // local sample in [-0.5,0.5]^2
+//    float u1 = u(rng) - 0.5f, u2 = u(rng) - 0.5f;
+//    glm::vec3 pL, nLocal;
+//    switch (face) {
+//    case 0: pL = glm::vec3(u1, u2, 0.5f); nLocal = glm::vec3(0, 0, 1); break; // +Z
+//    case 1: pL = glm::vec3(u1, u2, -0.5f); nLocal = glm::vec3(0, 0, -1); break; // -Z
+//    case 2: pL = glm::vec3(0.5f, u1, u2); nLocal = glm::vec3(1, 0, 0); break; // +X
+//    case 3: pL = glm::vec3(-0.5f, u1, u2); nLocal = glm::vec3(-1, 0, 0); break; // -X
+//    case 4: pL = glm::vec3(u1, 0.5f, u2); nLocal = glm::vec3(0, 1, 0); break; // +Y
+//    default:pL = glm::vec3(u1, -0.5f, u2); nLocal = glm::vec3(0, -1, 0); break; // -Y
+//    }
+//    xL = xformPoint(g.transform, pL);
+//    nL = xformNormal(g.invTranspose, nLocal);
+//    pdfA = 1.f / fmaxf(total, 1e-6f);
+//}
+//
+//__host__ __device__ void sampleSphereSurface(const Geom& g, thrust::default_random_engine& rng,
+//    glm::vec3& xL, glm::vec3& nL, float& pdfA) {
+//    thrust::uniform_real_distribution<float> u(0.f, 1.f);
+//    float z = 2.f * u(rng) - 1.f;
+//    float phi = 2.f * PI * u(rng);
+//    float r = 0.5f; // unit sphere
+//    float s = sqrtf(fmaxf(0.f, 1.f - z * z));
+//    glm::vec3 pLocal(r * s * cosf(phi), r * s * sinf(phi), r * z);
+//    glm::vec3 nLocal = glm::normalize(pLocal);
+//    xL = xformPoint(g.transform, pLocal);
+//    nL = xformNormal(g.invTranspose, nLocal);
+//    // area of sphere (approx uniform scale)
+//    float rx = glm::length(glm::vec3(g.transform * glm::vec4(1, 0, 0, 0))) * 0.5f;
+//    float area = 4.f * PI * rx * rx;
+//    pdfA = 1.f / fmaxf(area, 1e-6f);
+//}
+//
+//__host__ __device__ bool samplePointOnLight(const Geom* geoms, const Material* mats,
+//    const int* lightIDs, const float* lightAreas, int numLights,
+//    thrust::default_random_engine& rng,
+//    glm::vec3& xL, glm::vec3& nL, glm::vec3& Le,
+//    int& picked, float& pdfA) {
+//    if (numLights == 0) return false;
+//    picked = pickLightByArea(lightAreas, numLights, rng);
+//    const Geom& lg = geoms[lightIDs[picked]];
+//    const Material& lm = mats[lg.materialid];
+//    Le = lm.emittance * lm.color;
+//
+//    // sample on that geometry
+//    if (lg.type == CUBE)      sampleCubeSurface(lg, rng, xL, nL, pdfA);
+//    else if (lg.type == SPHERE) sampleSphereSurface(lg, rng, xL, nL, pdfA);
+//    else return false;
+//
+//    // include discrete light selection probability (area-weighted)
+//    float sumA = 0.f; for (int i = 0; i < numLights; ++i) sumA += lightAreas[i];
+//    float pPick = lightAreas[picked] / fmaxf(sumA, 1e-6f);
+//    pdfA *= pPick;  // combined area pdf
+//    return true;
+//}
+//
+//// Convert area pdf to solid-angle pdf at x for direction wi toward xL
+//__host__ __device__ float lightPdfSolidAngle(const glm::vec3& x, const glm::vec3& wi,
+//    const glm::vec3& xL, const glm::vec3& nL,
+//    float pdfA) {
+//    float dist2 = glm::length2(xL - x);
+//    float cosL = fmaxf(0.f, glm::dot(nL, -wi));
+//    return (cosL > 0.f) ? (pdfA * dist2 / cosL) : 0.f;
+//}
+//
+//__host__ __device__ float bsdfPdfLambert(const glm::vec3& n, const glm::vec3& wi) {
+//    float cosT = fmaxf(0.f, glm::dot(n, wi));
+//    return cosT / PI;
+//}
+//__host__ __device__ glm::vec3 bsdfEvalLambert(const glm::vec3& albedo) {
+//    return albedo / PI;
+//}
+//
+//// Shadow test: any hit before tMax?
+//__host__ __device__ bool visibleShadow(const glm::vec3& x, const glm::vec3& wi, float tMax,
+//    const Geom* geoms, int geoms_size) {
+//    Ray r; r.origin = x + wi * 1e-4f; r.direction = wi;
+//    float t, tmin = tMax;
+//    bool outside; glm::vec3 tmpP, tmpN;
+//    for (int i = 0; i < geoms_size; ++i) {
+//        const Geom& g = geoms[i];
+//        if (g.type == CUBE)   t = boxIntersectionTest(g, r, tmpP, tmpN, outside);
+//        else if (g.type == SPHERE) t = sphereIntersectionTest(g, r, tmpP, tmpN, outside);
+//        else t = -1.f;
+//        if (t > 0.f && t < tmin - 1e-4f) return false; // occluded
+//    }
+//    return true;
+//}
 
 
 
@@ -141,6 +269,55 @@ void pathtraceInit(Scene* scene)
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     // TODO: initialize any extra device memeory you need
+
+
+    //// for lights!
+    //// new globals
+    //static int* dev_light_ids = nullptr;
+    //static float* dev_light_areas = nullptr;
+    //static int    dev_num_lights = 0;
+
+    //// --- host-side init:
+    //std::vector<int>   light_ids;
+    //std::vector<float> light_areas;
+
+    //auto areaOfCube = [](const Geom& g)->float {
+    //    // lengths of transformed basis (size along local axes for a unit cube)
+    //    glm::vec3 ex = glm::vec3(g.transform * glm::vec4(1, 0, 0, 0));
+    //    glm::vec3 ey = glm::vec3(g.transform * glm::vec4(0, 1, 0, 0));
+    //    glm::vec3 ez = glm::vec3(g.transform * glm::vec4(0, 0, 1, 0));
+    //    float Lx = glm::length(ex);
+    //    float Ly = glm::length(ey);
+    //    float Lz = glm::length(ez);
+    //    return 2.f * (Lx * Ly + Ly * Lz + Lz * Lx);
+    //    };
+    //auto areaOfSphere = [](const Geom& g)->float {
+    //    // assume uniform scale; unit sphere has r=0.5
+    //    float rx = glm::length(glm::vec3(g.transform * glm::vec4(1, 0, 0, 0))) * 0.5f;
+    //    return 4.f * PI * rx * rx;
+    //    };
+
+    //for (int i = 0; i < (int)scene->geoms.size(); ++i) {
+    //    const Geom& g = scene->geoms[i];
+    //    const Material& m = scene->materials[g.materialid];
+    //    if (m.emittance > 0.f) {
+    //        light_ids.push_back(i);
+    //        float A = (g.type == CUBE) ? areaOfCube(g)
+    //            : (g.type == SPHERE) ? areaOfSphere(g)
+    //            : 0.f;
+    //        light_areas.push_back(fmaxf(A, 1e-6f));
+    //    }
+    //}
+
+    //dev_num_lights = (int)light_ids.size();
+    //if (dev_num_lights > 0) {
+    //    cudaMalloc(&dev_light_ids, dev_num_lights * sizeof(int));
+    //    cudaMalloc(&dev_light_areas, dev_num_lights * sizeof(float));
+    //    cudaMemcpy(dev_light_ids, light_ids.data(), dev_num_lights * sizeof(int), cudaMemcpyHostToDevice);
+    //    cudaMemcpy(dev_light_areas, light_areas.data(), dev_num_lights * sizeof(float), cudaMemcpyHostToDevice);
+    //}
+
+
 
     checkCUDAError("pathtraceInit");
 }
@@ -350,12 +527,22 @@ __global__ void computeBSDF(int iter,
     const glm::vec3 hitPoint =
         pathSegments[index].ray.origin + shadInt.t * wo;
 
+    
+
     glm::vec3 n = shadInt.surfaceNormal;
     if (glm::dot(n, wo) > 0.0f) shadInt.surfaceNormal = -n;
 
-    if (shadInt.t < 0.0f) {
+#if !USE_STREAM_COMPACTION
+    if (pathSegments[index].remainingBounces <= 0) {
+        return;
+    }
+#endif
+
+
+
+    if (shadInt.t <= 0.0f) {
         pathSegments[index].remainingBounces = 0;
-        //pathSegments[index].color = glm::vec3(0.0f);
+        pathSegments[index].color = glm::vec3(0.0f);
         return;
     }
     else {
@@ -367,7 +554,7 @@ __global__ void computeBSDF(int iter,
             return;
         }
         else {
-            
+            thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, pathSegments[index].remainingBounces);
             if (pathSegments[index].remainingBounces > 0) {
                 --pathSegments[index].remainingBounces;
                 float pdf;
@@ -376,7 +563,7 @@ __global__ void computeBSDF(int iter,
                     shadInt.surfaceNormal,
                     pdf,
                     mat,
-                    makeSeededRandomEngine(iter, index, 0));
+                    makeSeededRandomEngine(iter, index, pathSegments[index].remainingBounces));
 
                 if (pdf < EPSILON || pathSegments[index].color == glm::vec3(0.0f))
                 {
@@ -384,11 +571,11 @@ __global__ void computeBSDF(int iter,
                     //pathSegments[index].color = glm::vec3(0.0f);
                     return;
                 }
-                //scatterRay(pathSegments[index], shadInt.t * pathSegments[index].ray.direction, shadInt.surfaceNormal, mat, makeSeededRandomEngine(iter, index, 0));
+                //scatterRay(pathSegments[index], shadInt.t * pathSegments[index].ray.direction + pathSegments[index].ray.origin, shadInt.surfaceNormal, mat, makeSeededRandomEngine(iter, index, rng));
             }
             else {
                 pathSegments[index].remainingBounces = 0;
-                //pathSegments[index].color = glm::vec3(0.0f);
+                pathSegments[index].color = glm::vec3(0.0f);
                 return;
             }
 
