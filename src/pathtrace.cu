@@ -6,6 +6,8 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <thrust/partition.h>
+#include <device_launch_parameters.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -50,6 +52,7 @@ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int de
 }
 
 //Kernel that writes the image to the OpenGL PBO directly.
+/*
 __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image)
 {
     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -72,6 +75,34 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
         pbo[index].z = color.z;
     }
 }
+*/
+__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    if (x >= resolution.x || y >= resolution.y) return;
+
+    int index = x + y * resolution.x;
+    glm::vec3 L = image[index] / fmaxf((float)iter, 1.f);   // linear avg
+
+    // optional exposure (1.0f is neutral). Uncomment if you want:
+    // float exposure = 1.0f;
+    // L = glm::vec3(1.0f) - glm::exp(-exposure * L);
+
+    // gamma encode to sRGB-ish
+    const float invGamma = 1.0f / 2.2f;
+    L = glm::clamp(L, glm::vec3(0.f), glm::vec3(1e9f));
+    L = glm::pow(L, glm::vec3(invGamma));
+
+    glm::ivec3 color = glm::ivec3(
+        glm::clamp((int)(L.x * 255.0f), 0, 255),
+        glm::clamp((int)(L.y * 255.0f), 0, 255),
+        glm::clamp((int)(L.z * 255.0f), 0, 255));
+
+    pbo[index] = make_uchar4(color.x, color.y, color.z, 0);
+}
+
+
 
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
@@ -270,7 +301,7 @@ __global__ void shadeFakeMaterial(
                 glm::vec3 intersect = intersection.t * pathSegments[idx].ray.direction + pathSegments[idx].ray.origin;
                 scatterRay(pathSegments[idx], intersect, intersection.surfaceNormal, material, rng);
 
-                --pathSegments[idx].remainingBounces;
+                //--pathSegments[idx].remainingBounces;
                 
                 //pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
                 //pathSegments[idx].color *= u01(rng); // apply some noise because why not
@@ -295,7 +326,7 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     if (index < nPaths)
     {
         PathSegment iterationPath = iterationPaths[index];
-        image[iterationPath.pixelIndex] += iterationPath.color;
+        if (iterationPath.remainingBounces == 0) image[iterationPath.pixelIndex] += iterationPath.color;
     }
 }
 
@@ -311,28 +342,54 @@ __global__ void computeBSDF(int iter,
     
     if (index >= nPaths) return;
 
-    PathSegment pathSeg = pathSegments[index];
+    if (pathSegments[index].remainingBounces == 0) return;
+
     ShadeableIntersection shadInt = shadeableIntersections[index];
 
+    const glm::vec3 wo = pathSegments[index].ray.direction;
+    const glm::vec3 hitPoint =
+        pathSegments[index].ray.origin + shadInt.t * wo;
+
+    glm::vec3 n = shadInt.surfaceNormal;
+    if (glm::dot(n, wo) > 0.0f) shadInt.surfaceNormal = -n;
+
     if (shadInt.t < 0.0f) {
-        pathSeg.remainingBounces = 0;
-        pathSeg.color = glm::vec3(0.0f);
+        pathSegments[index].remainingBounces = 0;
+        //pathSegments[index].color = glm::vec3(0.0f);
+        return;
     }
     else {
         Material mat = materials[shadInt.materialId];
 
         if (mat.emittance > 0.f) {
-            pathSeg.remainingBounces = 0;
-            pathSeg.color *= mat.emittance * mat.color;
+            pathSegments[index].remainingBounces = 0;
+            pathSegments[index].color *= mat.emittance * mat.color;
+            return;
         }
         else {
-            --pathSeg.remainingBounces;
-            if (pathSeg.remainingBounces >= 0) {
-                
-                scatterRay(pathSeg, shadInt.t * pathSeg.ray.direction, shadInt.surfaceNormal, mat, makeSeededRandomEngine(iter, index, 0));
+            
+            if (pathSegments[index].remainingBounces > 0) {
+                --pathSegments[index].remainingBounces;
+                float pdf;
+                bsdf(pathSegments[index],
+                    shadInt.t * pathSegments[index].ray.direction + pathSegments[index].ray.origin,
+                    shadInt.surfaceNormal,
+                    pdf,
+                    mat,
+                    makeSeededRandomEngine(iter, index, 0));
+
+                if (pdf < EPSILON || pathSegments[index].color == glm::vec3(0.0f))
+                {
+                    pathSegments[index].remainingBounces = 0;
+                    //pathSegments[index].color = glm::vec3(0.0f);
+                    return;
+                }
+                //scatterRay(pathSegments[index], shadInt.t * pathSegments[index].ray.direction, shadInt.surfaceNormal, mat, makeSeededRandomEngine(iter, index, 0));
             }
             else {
-                pathSeg.color = glm::vec3(0.0f);
+                pathSegments[index].remainingBounces = 0;
+                //pathSegments[index].color = glm::vec3(0.0f);
+                return;
             }
 
         }
@@ -435,14 +492,36 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
 
-        shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        //shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        //    iter,
+        //    num_paths,
+        //    dev_intersections,
+        //    dev_paths,
+        //    dev_materials
+        //);
+
+
+
+
+
+        computeBSDF << <numblocksPathSegmentTracing, blockSize1d >> > (
             iter,
             num_paths,
             dev_intersections,
             dev_paths,
             dev_materials
         );
-        iterationComplete = true; // TODO: should be based off stream compaction results.
+        checkCUDAError("computeBSDF");
+
+        //iterationComplete = true; // TODO: should be based off stream compaction results.
+
+#ifdef STREAM_COMPACTION
+
+        num_paths = thrust::partition(thrust::device,
+            dev_paths, 
+            dev_paths + num_paths, isRayAlive()) - dev_paths;
+#endif
+        iterationComplete = depth == traceDepth || num_paths == 0;
 
         if (guiData != NULL)
         {
@@ -451,6 +530,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
 
     }
+
+#ifdef STREAM_COMPACTION
+
+    num_paths = dev_path_end - dev_paths;
+#endif
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;

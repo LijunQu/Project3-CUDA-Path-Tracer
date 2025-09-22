@@ -40,6 +40,39 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
  *
  * You may need to change the parameter list for your purposes!
  */
+__host__ __device__ glm::vec3 squareToDiskConcentric(const glm::vec2& xi);
+__host__ __device__ glm::vec3 squareToHemisphereCosine(const glm::vec2& xi);
+
+// Cosine-weighted sample in WORLD space given a shading normal `n`.
+// Returns direction; writes matching pdf = cos(theta)/PI.
+__host__ __device__ glm::vec3 cosineSampleHemisphere(const glm::vec3& n,
+                                            thrust::default_random_engine& rng,
+                                            float& outPdf);
+
+__host__ __device__ void bsdf_pdf(PathSegment& pathSegment,
+    glm::vec3 normal, float& pdf);
+
+__host__ __device__ void bsdf_specular(PathSegment& pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    float& pdf,
+    const Material& m,
+    thrust::default_random_engine& rng);
+
+__host__ __device__ void bsdf_diffuse(PathSegment& pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    float& pdf,
+    const Material& m,
+    thrust::default_random_engine& rng);
+
+__host__ __device__ void bsdf(PathSegment& pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    float& pdf,
+    const Material& m,
+    thrust::default_random_engine& rng);
+
 __host__ __device__ void scatterRay(
     PathSegment& pathSegment,
     glm::vec3 intersect,
