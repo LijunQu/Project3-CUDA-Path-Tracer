@@ -18,6 +18,7 @@
 #include "interactions.h"
 
 #define ERRORCHECK 1
+#define STREAM_COMPACTION 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -230,7 +231,13 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 //    return true;
 //}
 
-
+struct isRayAlive
+{
+    __host__ __device__ bool operator()(const PathSegment& path)
+    {
+        return path.remainingBounces > 0;
+    }
+};
 
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
@@ -271,54 +278,6 @@ void pathtraceInit(Scene* scene)
     // TODO: initialize any extra device memeory you need
 
 
-    //// for lights!
-    //// new globals
-    //static int* dev_light_ids = nullptr;
-    //static float* dev_light_areas = nullptr;
-    //static int    dev_num_lights = 0;
-
-    //// --- host-side init:
-    //std::vector<int>   light_ids;
-    //std::vector<float> light_areas;
-
-    //auto areaOfCube = [](const Geom& g)->float {
-    //    // lengths of transformed basis (size along local axes for a unit cube)
-    //    glm::vec3 ex = glm::vec3(g.transform * glm::vec4(1, 0, 0, 0));
-    //    glm::vec3 ey = glm::vec3(g.transform * glm::vec4(0, 1, 0, 0));
-    //    glm::vec3 ez = glm::vec3(g.transform * glm::vec4(0, 0, 1, 0));
-    //    float Lx = glm::length(ex);
-    //    float Ly = glm::length(ey);
-    //    float Lz = glm::length(ez);
-    //    return 2.f * (Lx * Ly + Ly * Lz + Lz * Lx);
-    //    };
-    //auto areaOfSphere = [](const Geom& g)->float {
-    //    // assume uniform scale; unit sphere has r=0.5
-    //    float rx = glm::length(glm::vec3(g.transform * glm::vec4(1, 0, 0, 0))) * 0.5f;
-    //    return 4.f * PI * rx * rx;
-    //    };
-
-    //for (int i = 0; i < (int)scene->geoms.size(); ++i) {
-    //    const Geom& g = scene->geoms[i];
-    //    const Material& m = scene->materials[g.materialid];
-    //    if (m.emittance > 0.f) {
-    //        light_ids.push_back(i);
-    //        float A = (g.type == CUBE) ? areaOfCube(g)
-    //            : (g.type == SPHERE) ? areaOfSphere(g)
-    //            : 0.f;
-    //        light_areas.push_back(fmaxf(A, 1e-6f));
-    //    }
-    //}
-
-    //dev_num_lights = (int)light_ids.size();
-    //if (dev_num_lights > 0) {
-    //    cudaMalloc(&dev_light_ids, dev_num_lights * sizeof(int));
-    //    cudaMalloc(&dev_light_areas, dev_num_lights * sizeof(float));
-    //    cudaMemcpy(dev_light_ids, light_ids.data(), dev_num_lights * sizeof(int), cudaMemcpyHostToDevice);
-    //    cudaMemcpy(dev_light_areas, light_areas.data(), dev_num_lights * sizeof(float), cudaMemcpyHostToDevice);
-    //}
-
-
-
     checkCUDAError("pathtraceInit");
 }
 
@@ -355,9 +314,20 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
         // TODO: implement antialiasing by jittering the ray
+
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, segment.remainingBounces);
+        thrust::uniform_real_distribution<float> u01(0, 1);
+        float result = u01(rng);
+
+        //float x = (cam.pixelLength.x / cam.resolution.x) * 2 - 1;
+        //float y = (cam.pixelLength.y / cam.resolution.y) * 2 - 1;
+
+        float jitterX = (u01(rng) - 0.5f);
+        float jitterY = (u01(rng) - 0.5f);
+       
         segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+            - cam.right * cam.pixelLength.x * ((float)(x + jitterX) - (float)cam.resolution.x * 0.5f)
+            - cam.up * cam.pixelLength.y * ((float)(y + jitterY) - (float)cam.resolution.y * 0.5f)
         );
 
         segment.pixelIndex = index;
@@ -701,6 +671,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         checkCUDAError("computeBSDF");
 
         //iterationComplete = true; // TODO: should be based off stream compaction results.
+
+
+
 
 #ifdef STREAM_COMPACTION
 

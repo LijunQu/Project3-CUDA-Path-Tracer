@@ -121,6 +121,12 @@ __host__ __device__ void bsdf_specular(PathSegment& pathSegment,
 }
 
 
+__host__ __device__ float schlick(float cos, float reflectIdx)
+{
+    float r0 = powf((1.0f - reflectIdx) / (1.0f + reflectIdx), 2.0f);
+    return r0 + (1.0f - r0) * powf((1.0f - cos), 5.0f);
+}
+
 __host__ __device__ void bsdf_diffuse(PathSegment& pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
@@ -139,6 +145,98 @@ __host__ __device__ void bsdf_diffuse(PathSegment& pathSegment,
 }
 
 
+__host__ __device__ void btdf_specular(PathSegment& pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    float& pdf,
+    const Material& m,
+    thrust::default_random_engine& rng)
+{
+    //float etaA = 1.;
+    //float etaB = 1.55;
+    float eta;
+    glm::vec3 n;
+    glm::vec3 rayDir = pathSegment.ray.direction;
+    if (glm::dot(normal, rayDir) <= 0.f) {
+        //eta = etaB / etaA;
+        eta = m.indexOfRefraction;
+        n = normal;
+    }
+    else {
+        //eta = etaA / etaB;
+        eta = 1.0f / m.indexOfRefraction;
+        n = -normal;
+    }
+    glm::vec3 wt = glm::refract(rayDir, n, eta);
+
+    // TIR
+    if (glm::length(wt) < 0.01f) {
+        pathSegment.color *= 0.0f;
+        wt = glm::reflect(rayDir, n);
+    }
+
+    float cos = glm::clamp(glm::dot(rayDir, n), 0.0f, 1.0f);
+    float reflectProb = schlick(cos, m.indexOfRefraction);
+
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float rand = u01(rng);
+
+    pathSegment.ray.direction = reflectProb < rand ? glm::normalize(glm::reflect(rayDir, n)) : glm::normalize(wt);
+    pathSegment.ray.origin = intersect + 0.01f * pathSegment.ray.direction;
+
+    pathSegment.color *= m.color;
+
+
+
+}
+
+__host__ __device__ float FresnelDielectricEval(float cosThetaI, float IOR) {
+    float etaI = 1.f;
+    float etaT = IOR;
+    cosThetaI = glm::clamp(cosThetaI, -1.f, 1.f);
+
+    if (cosThetaI > 0.f) {
+        float temp = etaI;
+        etaI = etaT;
+        etaT = temp;
+    }
+    cosThetaI = glm::abs(cosThetaI);
+
+    float sinThetaI = glm::sqrt(glm::max(0.f, 1.f - cosThetaI * cosThetaI));
+    float sinThetaT = etaI / etaT * sinThetaI;
+    float cosThetaT = glm::sqrt(glm::max(0.f, 1.f - sinThetaT * sinThetaT));
+    float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) /
+        ((etaT * cosThetaI) + (etaI * cosThetaT));
+    float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
+        ((etaI * cosThetaI) + (etaT * cosThetaT));
+
+    return (Rparl * Rparl + Rperp * Rperp) * 0.5f;
+}
+
+__host__ __device__ void glass(PathSegment& pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    float& pdf,
+    const Material& m,
+    thrust::default_random_engine& rng)
+{
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float rand = u01(rng);
+
+    float cos = glm::dot(pathSegment.ray.direction, normal);
+    float fresnel = FresnelDielectricEval(cos, m.indexOfRefraction);
+
+    if (rand < fresnel) {
+        bsdf_specular(pathSegment, intersect, normal, pdf, m, rng);
+    }
+    else {
+        btdf_specular(pathSegment, intersect, normal, pdf, m, rng);
+    }
+    
+}
+
+
+
 __host__ __device__ void bsdf(PathSegment& pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
@@ -146,15 +244,34 @@ __host__ __device__ void bsdf(PathSegment& pathSegment,
     const Material& m,
     thrust::default_random_engine& rng)
 {
-    if (m.hasReflective) {
-        bsdf_specular(pathSegment, intersect, normal, pdf, m, rng);
+    if (m.hasReflective && m.hasRefractive) {
+        glass(pathSegment, intersect, normal, pdf, m, rng);
 
+        //sampleFGlass(
+        //    const glm::vec3 & albedo,
+        //    glm::vec3 & normal,
+        //    const glm::vec3 & wo,
+        //    const float& IOR,
+        //    glm::vec3 & wiW,
+        //    thrust::default_random_engine & rng)
+
+        //sampleFGlass(m.color, normal, pathSegment.ray.direction,
+            //m.indexOfRefraction, );
+
+    }
+    else if (m.hasReflective) {
+        bsdf_specular(pathSegment, intersect, normal, pdf, m, rng);
+    }
+    else if (m.hasRefractive) {
+        btdf_specular(pathSegment, intersect, normal, pdf, m, rng);
     }
     else {
         bsdf_diffuse(pathSegment, intersect, normal, pdf, m, rng);
     }
 
 }
+
+
 
 
 
