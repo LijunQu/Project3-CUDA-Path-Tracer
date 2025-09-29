@@ -111,13 +111,13 @@ __host__ __device__ void bsdf_specular(PathSegment& pathSegment,
     thrust::default_random_engine& rng)
 {
 
-    glm::vec3 dir = calculateRandomDirectionInHemisphere(normal, rng);
+    glm::vec3 dir = pathSegment.ray.direction;
+
     pathSegment.ray.origin = intersect + EPSILON * normal;
-    //pathSegment.ray.direction = dir;
-    pathSegment.ray.direction = dir;
+    pathSegment.ray.direction = glm::normalize(glm::reflect(dir, normal));
     float cosTheta = glm::max(0.f, glm::dot(pathSegment.ray.direction, normal));
     bsdf_pdf(pathSegment, normal, pdf);
-    pathSegment.color *= m.color / cosTheta;
+    pathSegment.color *= m.color;
 }
 
 
