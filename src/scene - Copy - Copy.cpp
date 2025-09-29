@@ -152,12 +152,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 triangles[i] = transformedTri;
 
                 geoms.push_back(newGeom);
-
-
-
             }
-            std::cout << "[GLTF-TRIS] " << triangles.size() << "\n";
-
         }
         else {
             Geom newGeom;

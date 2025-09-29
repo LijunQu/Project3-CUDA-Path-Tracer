@@ -246,18 +246,6 @@ __host__ __device__ void bsdf(PathSegment& pathSegment,
 {
     if (m.hasReflective && m.hasRefractive) {
         glass(pathSegment, intersect, normal, pdf, m, rng);
-
-        //sampleFGlass(
-        //    const glm::vec3 & albedo,
-        //    glm::vec3 & normal,
-        //    const glm::vec3 & wo,
-        //    const float& IOR,
-        //    glm::vec3 & wiW,
-        //    thrust::default_random_engine & rng)
-
-        //sampleFGlass(m.color, normal, pathSegment.ray.direction,
-            //m.indexOfRefraction, );
-
     }
     else if (m.hasReflective) {
         bsdf_specular(pathSegment, intersect, normal, pdf, m, rng);
