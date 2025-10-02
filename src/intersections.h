@@ -27,7 +27,7 @@ __host__ __device__ inline unsigned int utilhash(unsigned int a)
  */
 __host__ __device__ inline glm::vec3 getPointOnRay(Ray r, float t)
 {
-    return r.origin + (t - .0001f) * glm::normalize(r.direction);
+    return r.origin + t * glm::normalize(r.direction);
 }
 
 /**
@@ -72,10 +72,34 @@ __host__ __device__ float sphereIntersectionTest(
     glm::vec3& normal,
     bool& outside);
 
+//__host__ __device__ void solveQuadratic(float A, float B, float C, float& t0, float& t1);
+
+
 __host__ __device__ float triangleIntersectionTest(
-    Geom sphere,
+    Geom triangle,
     Ray r,
     const MeshTriangle& tri,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside);
+
+
+__host__ __device__ float triangleIntersectionTestRaw(
+    Ray r,
+    const MeshTriangle& tri,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside);
+
+__host__ __device__ float IntersectBVH(
+    Ray r,
+    MeshTriangle* triangles,
+    const int nodeIdx,
+    BVHNode* bvhNodes,
+    int* triIdx,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside,
+    int& hitTriIdx);
+
+__host__ __device__ bool IntersectAABB(const Ray& ray, const glm::vec3 bmin, const glm::vec3 bmax);

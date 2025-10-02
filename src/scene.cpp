@@ -128,6 +128,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             triangles = loader.getTriangles();
 
+
+
+
+
+
+
             for (int i = 0; i < triangles.size(); i++) {
                 Geom newGeom;
                 newGeom.type = TRI;
@@ -135,6 +141,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 newGeom.triangle_index = i;
 
                 newGeom.materialid = MatNameToID[p["MATERIAL"]];
+
                 const auto& trans = p["TRANS"];
                 const auto& rotat = p["ROTAT"];
                 const auto& scale = p["SCALE"];
@@ -149,14 +156,38 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 transformedTri.v0 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v0, 1.0f));
                 transformedTri.v1 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v1, 1.0f));
                 transformedTri.v2 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v2, 1.0f));
+                
+                transformedTri.materialId = newGeom.materialid;
+
                 triangles[i] = transformedTri;
 
                 geoms.push_back(newGeom);
 
 
 
+
             }
-            std::cout << "[GLTF-TRIS] " << triangles.size() << "\n";
+
+
+            //for (int i = 0; i < triangles.size(); i++) {
+            //    std::cout << "Triangle " << i << ": materialId=" << triangles[i].materialId
+            //        << " v0=(" << triangles[i].v0.x << "," << triangles[i].v0.y << "," << triangles[i].v0.z << ")\n";
+            //}
+
+            int N = triangles.size();
+            bvhNodes.clear();
+            bvhNodes.resize(N * 2 - 1);
+            BuildBVH(bvhNodes, N);
+
+            //std::cout << "[BVH] Built with " << nodesUsed << " nodes for " << N << " triangles\n";
+            //std::cout << "[BVH] triIdx size: " << triIdx.size() << "\n";
+
+            //std::cout << "[BVH] Root AABB: min=(" << bvhNodes[0].aabbMin.x << ","
+            //    << bvhNodes[0].aabbMin.y << "," << bvhNodes[0].aabbMin.z << ") max=("
+            //    << bvhNodes[0].aabbMax.x << "," << bvhNodes[0].aabbMax.y << ","
+            //    << bvhNodes[0].aabbMax.z << ")\n";
+
+            //std::cout << "[GLTF-TRIS] " << triangles.size() << "\n";
 
         }
         else {
@@ -218,4 +249,111 @@ void Scene::loadFromJSON(const std::string& jsonName)
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
 
 
+}
+
+
+
+//BVHNode bvhNode[N * 2 - 1];
+//int rootNodeIdx = 0, nodesUsed = 1;
+
+
+void Scene::BuildBVH(std::vector<BVHNode>& bvhNodes, int N)
+{
+
+    for (int i = 0; i < N; ++i) {
+        triangles[i].centroid = (triangles[i].v0 + triangles[i].v1 + triangles[i].v2) * 0.3333f;
+        triIdx.push_back(i);
+    }
+
+    BVHNode& root = bvhNodes[rootNodeIdx];
+
+    //root.leftChild = root.rightChild = 0;
+
+    root.firstPrim = 0, root.primCount = N;
+
+
+
+
+    UpdateNodeBounds(rootNodeIdx, bvhNodes, N);
+    Subdivide(rootNodeIdx, bvhNodes, N);
+
+
+
+    //std::vector<MeshTriangle> tris;
+    //tris =
+        //for (int i = 0; i < N; i++) tri[i].centroid =
+        //    (tri[i].vertex0 + tri[i].vertex1 + tri[i].vertex2) * 0.3333f;
+    // assign all triangles to root node
+    //BVHNode& root = bvhNode[rootNodeIdx];
+    //root.leftChild = root.rightChild = 0;
+    //root.firstPrim = 0, root.primCount = N;
+    //UpdateNodeBounds(rootNodeIdx);
+    // subdivide recursively
+    //Subdivide(rootNodeIdx);
+}
+
+void Scene::UpdateNodeBounds(int nodeIdx, std::vector<BVHNode>& bvhNodes, int N)
+{
+    BVHNode& node = bvhNodes[nodeIdx];
+    node.aabbMin = glm::vec3(1e30f);
+    node.aabbMax = glm::vec3(-1e30f);
+
+    for (int i = 0; i < node.primCount; i++)
+    {
+        int triIndex = triIdx[node.firstPrim + i];
+        MeshTriangle& leafTri = triangles[triIndex];
+
+        node.aabbMin = glm::min(node.aabbMin, leafTri.v0);
+        node.aabbMin = glm::min(node.aabbMin, leafTri.v1);
+        node.aabbMin = glm::min(node.aabbMin, leafTri.v2);
+        node.aabbMax = glm::max(node.aabbMax, leafTri.v0);
+        node.aabbMax = glm::max(node.aabbMax, leafTri.v1);
+        node.aabbMax = glm::max(node.aabbMax, leafTri.v2);
+    }
+
+    // Expand by epsilon to handle flat triangles
+    glm::vec3 epsilon(0.001f);
+    node.aabbMin -= epsilon;
+    node.aabbMax += epsilon;
+}
+
+void Scene::Subdivide(int nodeIdx, std::vector<BVHNode>& bvhNodes, int N)
+{
+    // terminate recursion
+    BVHNode& node = bvhNodes[nodeIdx];
+    if (node.primCount <= 2) return;
+    // determine split axis and position
+    glm::vec3 extent = node.aabbMax - node.aabbMin;
+    int axis = 0;
+    if (extent.y > extent.x) axis = 1;
+    if (extent.z > extent[axis]) axis = 2;
+    float splitPos = node.aabbMin[axis] + extent[axis] * 0.5f;
+    // in-place partition
+    int i = node.firstPrim;
+    int j = i + node.primCount - 1;
+    while (i <= j)
+    {
+        if (triangles[triIdx[i]].centroid[axis] < splitPos)
+            i++;
+        else
+            swap(triIdx[i], triIdx[j--]);
+    }
+    // abort split if one of the sides is empty
+    int leftCount = i - node.firstPrim;
+    if (leftCount == 0 || leftCount == node.primCount) return;
+    // create child nodes
+    int leftChildIdx = nodesUsed++;
+    int rightChildIdx = nodesUsed++;
+    bvhNodes[leftChildIdx].firstPrim = node.firstPrim;
+    bvhNodes[leftChildIdx].primCount = leftCount;
+    bvhNodes[rightChildIdx].firstPrim = i;
+    bvhNodes[rightChildIdx].primCount = node.primCount - leftCount;
+    node.leftChild = leftChildIdx;
+    node.rightChild = rightChildIdx;
+    node.primCount = 0;
+    UpdateNodeBounds(leftChildIdx, bvhNodes, N);
+    UpdateNodeBounds(rightChildIdx, bvhNodes, N);
+    // recurse
+    Subdivide(leftChildIdx, bvhNodes, N);
+    Subdivide(rightChildIdx, bvhNodes, N);
 }

@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include "sceneStructs.h"
 
 // Forward-declare, so this header does NOT pull tiny_gltf.h into other files.
 namespace tinygltf { class Model; }
@@ -11,6 +12,8 @@ struct MeshTriangle {
     glm::vec3 v0;
     glm::vec3 v1;
     glm::vec3 v2;
+    glm::vec3 centroid;
+    int materialId;
 };
 
 class glTFLoader {

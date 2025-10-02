@@ -11,12 +11,26 @@
 
 // ---------------- Implementation ----------------
 
+
+
 bool glTFLoader::loadModel(const std::string& filename) {
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;
     std::string err, warn;
 
 
+    // ---- Ignore image loading (we only need geometry) ----
+    auto IgnoreImageLoader = +[](tinygltf::Image*,
+        const int,
+        std::string*,
+        std::string*,
+        int, int,
+        const unsigned char*,
+        int,
+        void*) -> bool {
+            return true;
+        };
+    loader.SetImageLoader(IgnoreImageLoader, nullptr);
 
 
 
@@ -26,6 +40,18 @@ bool glTFLoader::loadModel(const std::string& filename) {
         (filename.size() > 4 && (filename.substr(filename.size() - 4) == ".glb" ||
             filename.substr(filename.size() - 4) == ".GLB"))) {
         ok = loader.LoadBinaryFromFile(&model, &err, &warn, filename);
+
+        // ... choose ASCII vs Binary, then:
+        if (!warn.empty()) std::cout << "[tinygltf warn] " << warn << "\n";
+        if (!err.empty())  std::cout << "[tinygltf err ] " << err << "\n";
+
+        std::cout << "[GLTF-LOAD] ok=" << ok << " path=" << filename << "\n";
+
+        if (!ok) {
+            std::cout << "Failed to load glTF file: " << filename << "\n";
+            return false;
+        }
+
     }
     else {
         ok = loader.LoadASCIIFromFile(&model, &err, &warn, filename);
@@ -123,3 +149,6 @@ std::vector<MeshTriangle> glTFLoader::getTriangles() const {
     }
     return tris;
 }
+
+
+

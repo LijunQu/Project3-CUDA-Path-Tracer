@@ -87,3 +87,18 @@ struct ShadeableIntersection
   glm::vec3 surfaceNormal;
   int materialId;
 };
+
+
+
+struct BVHNode {
+    // leaf if primCount > 0
+    int firstPrim = 0;
+    int primCount = 0;
+    // children if inner node
+    int leftChild = -1;
+    int rightChild = -1;
+    // world-space AABB
+    glm::vec3 aabbMin = glm::vec3(1e30f);
+    glm::vec3 aabbMax = glm::vec3(-1e30f);
+    bool isLeaf() { return primCount > 0; };
+};

@@ -12,7 +12,11 @@ private:
     bool jsonLoadedNonCuda = false;
     std::string jsonName_str;
     int triangleCount = -1;
-    std::vector<MeshTriangle> triangles;
+
+
+    void BuildBVH(std::vector<BVHNode>& bvhNodes, int N);
+    void UpdateNodeBounds(int nodeIdx, std::vector<BVHNode>& bvhNodes, int N); 
+    void Subdivide(int nodeIdx, std::vector<BVHNode>& bvhNodes, int N);
 public:
     Scene(std::string filename);
 
@@ -20,4 +24,10 @@ public:
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     RenderState state;
+
+    std::vector<MeshTriangle> triangles;
+    std::vector<int> triIdx;
+    std::vector<BVHNode> bvhNodes;
+
+    int rootNodeIdx = 0, nodesUsed = 1;
 };

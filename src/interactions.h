@@ -46,8 +46,7 @@ __host__ __device__ glm::vec3 squareToHemisphereCosine(const glm::vec2& xi);
 // Cosine-weighted sample in WORLD space given a shading normal `n`.
 // Returns direction; writes matching pdf = cos(theta)/PI.
 __host__ __device__ glm::vec3 cosineSampleHemisphere(const glm::vec3& n,
-                                            thrust::default_random_engine& rng,
-                                            float& outPdf);
+                                            thrust::default_random_engine& rng);
 
 __host__ __device__ void bsdf_pdf(PathSegment& pathSegment,
     glm::vec3 normal, float& pdf);
@@ -88,3 +87,6 @@ __host__ __device__ void btdf_specular(PathSegment& pathSegment,
     float& pdf, 
     const Material& m,
     thrust::default_random_engine& rng);
+
+
+__host__ __device__ float FresnelDielectricEval(float cosThetaI, float IOR);

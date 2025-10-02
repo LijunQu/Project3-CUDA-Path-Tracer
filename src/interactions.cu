@@ -113,7 +113,7 @@ __host__ __device__ void bsdf_specular(PathSegment& pathSegment,
 
     glm::vec3 dir = pathSegment.ray.direction;
 
-    pathSegment.ray.origin = intersect + EPSILON * normal;
+    pathSegment.ray.origin = intersect + 0.01f * normal;
     pathSegment.ray.direction = glm::normalize(glm::reflect(dir, normal));
     float cosTheta = glm::max(0.f, glm::dot(pathSegment.ray.direction, normal));
     bsdf_pdf(pathSegment, normal, pdf);
@@ -136,7 +136,7 @@ __host__ __device__ void bsdf_diffuse(PathSegment& pathSegment,
 {
 
     glm::vec3 dir = calculateRandomDirectionInHemisphere(normal, rng);
-    pathSegment.ray.origin = intersect + EPSILON * normal;
+    pathSegment.ray.origin = intersect + 0.01f * normal;
     //pathSegment.ray.direction = dir;
     pathSegment.ray.direction = dir;
 
@@ -175,7 +175,7 @@ __host__ __device__ void btdf_specular(PathSegment& pathSegment,
         wt = glm::reflect(rayDir, n);
     }
 
-    float cos = glm::clamp(glm::dot(rayDir, n), 0.0f, 1.0f);
+    float cos = glm::clamp(glm::dot(rayDir, n), -1.0f, 1.0f);
     float reflectProb = schlick(cos, m.indexOfRefraction);
 
     thrust::uniform_real_distribution<float> u01(0, 1);
