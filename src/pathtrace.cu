@@ -20,6 +20,7 @@
 
 #define ERRORCHECK 1
 #define STREAM_COMPACTION 1
+#define SORT_MATERIAL_ID 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -810,6 +811,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         //    dev_materials
         //);
 
+
+#ifndef SORT_MATERIAL_ID
+        thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, materialsCmp());
+#endif
 
 
 
