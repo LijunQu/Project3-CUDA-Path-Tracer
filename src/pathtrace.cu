@@ -82,6 +82,26 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
     }
 }
 
+
+
+__device__ glm::vec3 sampleTexture(const Texture* textures, int textureID, glm::vec2 uv) {
+    if (textureID < 0) return glm::vec3(1.0f);
+
+    const Texture& tex = textures[textureID];
+    if (!tex.data) return glm::vec3(1.0f);
+
+    // Wrap UVs to [0,1]
+    uv.x = uv.x - floorf(uv.x);
+    uv.y = uv.y - floorf(uv.y);
+
+    // Convert to pixel coordinates
+    int x = (int)(uv.x * tex.width) % tex.width;
+    int y = (int)(uv.y * tex.height) % tex.height;
+
+    int index = y * tex.width + x;
+    return tex.data[index];
+}
+
 /*
 __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image)
 {
@@ -251,6 +271,7 @@ static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
+static Texture* dev_textures = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 static MeshTriangle* dev_triangleBuffer = NULL;
@@ -303,6 +324,33 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_triangleBuffer, triangles.size() * sizeof(MeshTriangle));
     cudaMemcpy(dev_triangleBuffer, triangles.data(), triangles.size() * sizeof(MeshTriangle), cudaMemcpyHostToDevice);
 
+    if (!scene->textures.empty()) {
+        //std::cout << "Uploading " << scene->textures.size() << " textures to GPU\n";
+        cudaMalloc(&dev_textures, scene->textures.size() * sizeof(Texture));
+
+        std::vector<Texture> devTextures = scene->textures;
+        for (size_t i = 0; i < devTextures.size(); i++) {
+            //std::cout << "Texture " << i << ": " << devTextures[i].width << "x"
+            //    << devTextures[i].height;
+
+            if (devTextures[i].data) {
+                //std::cout << " - data valid\n";
+                glm::vec3* devData;
+                size_t dataSize = devTextures[i].width * devTextures[i].height * sizeof(glm::vec3);
+                cudaMalloc(&devData, dataSize);
+                cudaMemcpy(devData, devTextures[i].data, dataSize, cudaMemcpyHostToDevice);
+                devTextures[i].data = devData;
+            }
+            else {
+                std::cout << " - NO DATA!\n";
+            }
+        }
+
+        cudaMemcpy(dev_textures, devTextures.data(),
+            scene->textures.size() * sizeof(Texture), cudaMemcpyHostToDevice);
+    }
+
+
     checkCUDAError("issue with triangle buffer!");
 
     
@@ -347,6 +395,11 @@ void pathtraceFree()
     }
     
     cudaFree(dev_normals);
+
+    if (dev_textures) {
+        cudaFree(dev_textures);
+        dev_textures = NULL;
+    }
 
     checkCUDAError("pathtraceFree");
 }
@@ -480,6 +533,7 @@ __global__ void computeIntersections(
             glm::vec3 tmpIntersect, tmpNormal;
             bool tmpOutside = true;
             int hitTriIdx = -1;
+            glm::vec2 tmpUV;
 
             tHit = IntersectBVH(
                 pathSegment.ray,
@@ -490,7 +544,8 @@ __global__ void computeIntersections(
                 tmpIntersect,
                 tmpNormal,
                 tmpOutside,
-                hitTriIdx
+                hitTriIdx,
+                tmpUV
             );
 
             // Store which type of geometry we hit
@@ -500,6 +555,7 @@ __global__ void computeIntersections(
                 intersect_point = tmpIntersect;
                 normal = tmpNormal;
                 hitBVH = true;
+                intersections[path_index].uv = tmpUV;
             }
 
             // Set intersection data based on what was hit
@@ -663,7 +719,8 @@ __global__ void computeBSDF(int iter,
     int nPaths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
-    Material* materials)
+    Material* materials,
+    Texture* textures)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
     
@@ -697,6 +754,26 @@ __global__ void computeBSDF(int iter,
     }
     else {
         Material mat = materials[shadInt.materialId];
+
+        //pathSegments[index].remainingBounces = 0;
+        //pathSegments[index].color = glm::vec3(shadInt.uv.x, shadInt.uv.y, 0.0f);
+        //return;
+
+        //if (index == 320000) {
+        //    printf("Material hasTexture: %d, textureID: %d\n", mat.hasTexture, mat.textureID);
+        //}
+
+        if (mat.hasTexture) {
+            glm::vec3 texColor = sampleTexture(textures, mat.textureID, shadInt.uv);
+            
+            //if (index == 320000) {
+            //    printf("Sampled color: (%f, %f, %f) at UV (%f, %f)\n",
+            //        texColor.x, texColor.y, texColor.z, shadInt.uv.x, shadInt.uv.y);
+            //}
+            
+            mat.color *= texColor;
+        }
+
 
         if (mat.emittance > 0.f) {
             pathSegments[index].remainingBounces = 0;
@@ -859,7 +936,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             num_paths,
             dev_intersections,
             dev_paths,
-            dev_materials
+            dev_materials,
+            dev_textures
         );
         checkCUDAError("computeBSDF");
 

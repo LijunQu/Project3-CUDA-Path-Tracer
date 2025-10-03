@@ -10,9 +10,45 @@
 #include <iostream>
 #include <string>
 #include <unordered_map>
+#define STB_IMAGE_IMPLEMENTATION
+
 
 using namespace std;
 using json = nlohmann::json;
+
+Texture Scene::loadTexture(const std::string& filepath) {
+    Texture tex;
+    int channels;
+
+    std::cout << "Loading texture: " << filepath << "\n";
+    unsigned char* data = stbi_load(filepath.c_str(), &tex.width, &tex.height, &channels, 3);
+
+    if (!data) {
+        std::cout << "Failed to load texture: " << filepath << "\n";
+        tex.width = tex.height = 0;
+        tex.data = nullptr;
+        return tex;
+    }
+
+    std::cout << "Loaded texture: " << tex.width << "x" << tex.height << " (" << channels << " channels)\n";
+
+    // Allocate host memory and convert to float RGB
+    size_t pixelCount = tex.width * tex.height;
+    glm::vec3* hostData = new glm::vec3[pixelCount];
+
+    for (size_t i = 0; i < pixelCount; i++) {
+        hostData[i] = glm::vec3(
+            data[i * 3 + 0] / 255.0f,
+            data[i * 3 + 1] / 255.0f,
+            data[i * 3 + 2] / 255.0f
+        );
+    }
+
+    tex.data = hostData;
+
+    stbi_image_free(data);
+    return tex;
+}
 
 std::vector<MeshTriangle> Scene::getTriangleBuffer()
 {
@@ -76,6 +112,18 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+
+            if (p.contains("TEXTURE")) {
+                std::string texPath = p["TEXTURE"];
+                newMaterial.textureID = textures.size();
+                newMaterial.hasTexture = true;
+                textures.push_back(loadTexture(texPath));
+            }
+            else {
+                newMaterial.textureID = -1;
+                newMaterial.hasTexture = false;
+            }
+
         }
         else if (p["TYPE"] == "Emitting")
         {
@@ -161,6 +209,10 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 transformedTri.v1 = glm::vec3(newGeom.transform * glm::vec4(newTriangles[i].v1, 1.0f));
                 transformedTri.v2 = glm::vec3(newGeom.transform * glm::vec4(newTriangles[i].v2, 1.0f));
                 
+                transformedTri.uv0 = newTriangles[i].uv0;
+                transformedTri.uv1 = newTriangles[i].uv1;
+                transformedTri.uv2 = newTriangles[i].uv2;
+
                 transformedTri.materialId = newGeom.materialid;
 
                 //triangles[i] = transformedTri;

@@ -89,7 +89,8 @@ __host__ __device__ float triangleIntersectionTestRaw(
     const MeshTriangle& tri,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
-    bool& outside);
+    bool& outside,
+    glm::vec2& uv);
 
 __host__ __device__ float IntersectBVH(
     Ray r,
@@ -100,6 +101,7 @@ __host__ __device__ float IntersectBVH(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside,
-    int& hitTriIdx);
+    int& hitTriIdx,
+    glm::vec2& uv);
 
 __host__ __device__ bool IntersectAABB(const Ray& ray, const glm::vec3 bmin, const glm::vec3 bmax);

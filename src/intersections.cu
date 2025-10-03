@@ -242,7 +242,8 @@ __host__ __device__ float triangleIntersectionTestRaw(
     const MeshTriangle& tri,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
-    bool& outside)
+    bool& outside,
+    glm::vec2& uv)
 {
     // Moller-Trumbore intersection algorithm
     glm::vec3 edge1 = tri.v1 - tri.v0;
@@ -269,6 +270,10 @@ __host__ __device__ float triangleIntersectionTestRaw(
         intersectionPoint = r.origin + t * r.direction;
         normal = glm::normalize(glm::cross(edge1, edge2));
         outside = glm::dot(r.direction, normal) < 0.0f;
+
+        float w = 1.0f - u - v;
+        uv = w * tri.uv0 + u * tri.uv1 + v * tri.uv2;
+
         return t;
     }
 
@@ -284,7 +289,8 @@ __host__ __device__ float IntersectBVH(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside,
-    int& hitTriIdx)
+    int& hitTriIdx,
+    glm::vec2& uv)
 {
     if (!bvhNodes || !triangles || !triIdx) return -1.0f;
 
@@ -315,9 +321,10 @@ __host__ __device__ float IntersectBVH(
                 int triIndex = triIdx[node.firstPrim + i];
                 glm::vec3 tmpInt, tmpNorm;
                 bool tmpOut;
+                glm::vec2 tmpUV;
 
                 float t = triangleIntersectionTestRaw(r, triangles[triIndex],
-                    tmpInt, tmpNorm, tmpOut);
+                    tmpInt, tmpNorm, tmpOut, tmpUV);
 
 #ifndef __CUDA_ARCH__
                 printf("Triangle test: triIdx=%d, t=%f\n", triIndex, t);
@@ -329,6 +336,7 @@ __host__ __device__ float IntersectBVH(
                     normal = tmpNorm;
                     outside = tmpOut;
                     hitTriIdx = triIndex;
+                    uv = tmpUV;
                 }
             }
         }

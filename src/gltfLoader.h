@@ -13,6 +13,7 @@ struct MeshTriangle {
     glm::vec3 v1;
     glm::vec3 v2;
     glm::vec3 centroid;
+    glm::vec2 uv0, uv1, uv2;
     int materialId;
 };
 
@@ -20,7 +21,8 @@ class glTFLoader {
 public:
     struct Mesh {
         std::vector<float>   positions;  // x y z packed
-        std::vector<uint32_t> indices;   // triangle indices (0-based)
+        std::vector<uint32_t> indices;
+        std::vector<float> uvs;
     };
 
     glTFLoader() = default;
@@ -39,6 +41,11 @@ private:
         return { mesh.positions[i], mesh.positions[i + 1], mesh.positions[i + 2] };
     }
 
-    // Defined in the .cpp (needs tiny_gltf.h there, not here)
     void processModel(const tinygltf::Model& model);
+
+    glm::vec2 getUV(const Mesh& mesh, uint32_t index) const {
+        if (mesh.uvs.empty()) return glm::vec2(0.0f);
+        const size_t i = static_cast<size_t>(index) * 2;
+        return { mesh.uvs[i], mesh.uvs[i + 1] };
+    }
 };

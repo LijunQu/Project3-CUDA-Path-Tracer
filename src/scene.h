@@ -4,6 +4,7 @@
 #include <vector>
 #include "glTFLoader.h"
 #include <unordered_map>
+#include "stb_image.h"
 
 class Scene
 {
@@ -19,6 +20,8 @@ private:
     void Subdivide(int nodeIdx, std::vector<BVHNode>& bvhNodes, int N);
 public:
     Scene(std::string filename);
+    std::vector<Texture> textures;
+    Texture loadTexture(const std::string& filepath);
 
     std::vector<MeshTriangle> getTriangleBuffer();
     std::vector<Geom> geoms;
