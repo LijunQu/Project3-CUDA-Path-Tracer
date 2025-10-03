@@ -9,6 +9,7 @@
 #include <thrust/partition.h>
 #include <device_launch_parameters.h>
 //#include <cuda_runtime.h>
+#include <OpenImageDenoise/oidn.hpp>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -252,9 +253,11 @@ static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
-static MeshTriangle* dev_triangleBuffer_0 = NULL;
+static MeshTriangle* dev_triangleBuffer = NULL;
 static BVHNode* dev_bvhNodes = NULL;
 static int* dev_triIdx = NULL;
+static glm::vec3* dev_normals = NULL;
+
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -297,8 +300,8 @@ void pathtraceInit(Scene* scene)
     //std::cout << "Triangle 0: v0=(" << triangles[0].v0.x << "," << triangles[0].v0.y << "," << triangles[0].v0.z << ")\n";
     //std::cout << "           v1=(" << triangles[0].v1.x << "," << triangles[0].v1.y << "," << triangles[0].v1.z << ")\n";
     //std::cout << "           v2=(" << triangles[0].v2.x << "," << triangles[0].v2.y << "," << triangles[0].v2.z << ")\n";
-    cudaMalloc(&dev_triangleBuffer_0, triangles.size() * sizeof(MeshTriangle));
-    cudaMemcpy(dev_triangleBuffer_0, triangles.data(), triangles.size() * sizeof(MeshTriangle), cudaMemcpyHostToDevice);
+    cudaMalloc(&dev_triangleBuffer, triangles.size() * sizeof(MeshTriangle));
+    cudaMemcpy(dev_triangleBuffer, triangles.data(), triangles.size() * sizeof(MeshTriangle), cudaMemcpyHostToDevice);
 
     checkCUDAError("issue with triangle buffer!");
 
@@ -317,7 +320,8 @@ void pathtraceInit(Scene* scene)
             cudaMemcpyHostToDevice);
     }
     
-
+    cudaMalloc(&dev_normals, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_normals, 0, pixelcount * sizeof(glm::vec3));
 
     checkCUDAError("pathtraceInit");
 }
@@ -330,7 +334,7 @@ void pathtraceFree()
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
-    cudaFree(dev_triangleBuffer_0);
+    cudaFree(dev_triangleBuffer);
 
     
     if (dev_bvhNodes) {
@@ -342,7 +346,7 @@ void pathtraceFree()
         dev_triIdx = NULL;
     }
     
-
+    cudaFree(dev_normals);
 
     checkCUDAError("pathtraceFree");
 }
@@ -611,14 +615,25 @@ __global__ void shadeFakeMaterial(
 }
 
 // Add the current iteration's output to the overall image
-__global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
+__global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths, ShadeableIntersection* firstIntersections, glm::vec3* normals)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
     if (index < nPaths)
     {
         PathSegment iterationPath = iterationPaths[index];
-        if (iterationPath.remainingBounces == 0) image[iterationPath.pixelIndex] += iterationPath.color;
+        if (iterationPath.remainingBounces == 0) {
+            image[iterationPath.pixelIndex] += iterationPath.color;
+
+
+#if doDenoise
+            if (firstIntersections[index].t > 0.0f) {
+                normals[iterationPath.pixelIndex] = firstIntersections[index].surfaceNormal;
+            }
+#endif
+
+
+        }
     }
 }
 
@@ -781,7 +796,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             num_paths,
             dev_paths,
             dev_geoms,
-            dev_triangleBuffer_0,
+            dev_triangleBuffer,
             hst_scene->geoms.size(),
             dev_intersections
             ,
@@ -856,7 +871,46 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths, dev_intersections, dev_normals);
+
+
+#if doDenoise
+    static glm::vec3* hst_normals = nullptr;
+    if (!hst_normals) {
+        hst_normals = new glm::vec3[pixelcount];
+    }
+
+    // Copy GPU image to CPU ONCE
+    cudaMemcpy(hst_scene->state.image.data(), dev_image,
+        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+    cudaMemcpy(hst_normals, dev_normals,
+        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+
+    if (iter % 50 == 0 || iter == hst_scene->state.iterations) {
+        std::vector<glm::vec3> avgColor(pixelcount);
+        for (int i = 0; i < pixelcount; i++) {
+            avgColor[i] = hst_scene->state.image[i] / (float)iter;
+        }
+
+        denoise(avgColor.data(), hst_normals, cam.resolution.x, cam.resolution.y);
+
+        // Store denoised result (NOT adding to original!)
+        for (int i = 0; i < pixelcount; i++) {
+            hst_scene->state.image[i] = avgColor[i] * (float)iter;
+        }
+
+        // Upload denoised image back to GPU
+        cudaMemcpy(dev_image, hst_scene->state.image.data(),
+            pixelcount * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+    }
+#else
+    // Only copy from GPU if NOT denoising
+    cudaMemcpy(hst_scene->state.image.data(), dev_image,
+        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+#endif
+
+
+
 
     ///////////////////////////////////////////////////////////////////////////
 
@@ -869,3 +923,46 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     checkCUDAError("pathtrace");
 }
+
+void denoise(glm::vec3* colorBuffer, glm::vec3* normalBuffer, int width, int height) {
+    oidn::DeviceRef device = oidn::newDevice();
+    device.commit();
+
+    const char* errorMessage;
+    if (device.getError(errorMessage) != oidn::Error::None) {
+        std::cout << "OIDN Device Error: " << errorMessage << std::endl;
+        return;
+    }
+
+    size_t numPixels = width * height;
+    oidn::BufferRef colorBuf = device.newBuffer(numPixels * 3 * sizeof(float));
+    oidn::BufferRef outputBuf = device.newBuffer(numPixels * 3 * sizeof(float));
+
+    // Copy color data
+    std::memcpy(colorBuf.getData(), colorBuffer, numPixels * 3 * sizeof(float));
+
+    // Create filter with ONLY color (no normals or albedo)
+    oidn::FilterRef filter = device.newFilter("RT");
+    filter.setImage("color", colorBuf, oidn::Format::Float3, width, height);
+    filter.setImage("output", outputBuf, oidn::Format::Float3, width, height);
+    filter.set("hdr", true);
+    filter.commit();
+
+    if (device.getError(errorMessage) != oidn::Error::None) {
+        std::cout << "OIDN Filter Error: " << errorMessage << std::endl;
+        return;
+    }
+
+    filter.execute();
+
+    if (device.getError(errorMessage) != oidn::Error::None) {
+        std::cout << "OIDN Execution Error: " << errorMessage << std::endl;
+        return;
+    }
+
+    // Copy result back
+    std::memcpy(colorBuffer, outputBuf.getData(), numPixels * 3 * sizeof(float));
+
+    std::cout << "OIDN denoising successful!\n";
+}
+

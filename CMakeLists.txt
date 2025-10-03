@@ -95,6 +95,28 @@ set(imgui_sources
     src/ImGui/imgui_widgets.cpp
 )
 
+set(OIDN_ROOT_DIR "${CMAKE_SOURCE_DIR}/external")
+
+if(EXISTS "${OIDN_ROOT_DIR}/include/OpenImageDenoise/oidn.hpp")
+    message(STATUS "Found OpenImageDenoise headers")
+    include_directories("${OIDN_ROOT_DIR}/include")
+    
+    if(WIN32)
+        set(OIDN_LIB_PATH "${OIDN_ROOT_DIR}/lib/OpenImageDenoise.lib")
+    else()
+        set(OIDN_LIB_PATH "${OIDN_ROOT_DIR}/lib/libOpenImageDenoise.a")
+    endif()
+    
+    if(EXISTS "${OIDN_LIB_PATH}")
+        set(OIDN_LIBRARY ${OIDN_LIB_PATH})
+        message(STATUS "Using OIDN library: ${OIDN_LIBRARY}")
+    else()
+        message(FATAL_ERROR "OIDN library not found at ${OIDN_LIB_PATH}")
+    endif()
+else()
+    message(FATAL_ERROR "OpenImageDenoise headers not found at ${OIDN_ROOT_DIR}/include")
+endif()
+
 list(SORT headers)
 list(SORT sources)
 list(SORT imgui_headers)
@@ -112,6 +134,7 @@ add_executable(${CMAKE_PROJECT_NAME} ${sources} ${headers} ${imgui_sources} ${im
 target_link_libraries(${CMAKE_PROJECT_NAME}
     ${GL_LIBRARIES}
     #stream_compaction  # TODO: uncomment if using your stream compaction
+    ${OIDN_LIBRARY}
 )
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES CUDA_ARCHITECTURES native)
