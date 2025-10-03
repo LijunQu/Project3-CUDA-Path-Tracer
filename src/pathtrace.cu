@@ -383,10 +383,30 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         float jitterX = (u01(rng) - 0.5f);
         float jitterY = (u01(rng) - 0.5f);
        
-        segment.ray.direction = glm::normalize(cam.view
+        glm::vec3 rayDir = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)(x + jitterX) - (float)cam.resolution.x * 0.5f)
             - cam.up * cam.pixelLength.y * ((float)(y + jitterY) - (float)cam.resolution.y * 0.5f)
         );
+
+        // Depth of field
+        if (cam.lensRadius > 0.0f) {
+            // Point on focal plane
+            glm::vec3 focalPoint = cam.position + rayDir * cam.focalDistance;
+
+            // Random point on lens (thin lens approximation)
+            float angle = u01(rng) * 2.0f * PI;
+            float radius = cam.lensRadius * sqrtf(u01(rng));
+            glm::vec2 lensPoint = glm::vec2(cosf(angle), sinf(angle)) * radius;
+
+            // Offset ray origin
+            segment.ray.origin = cam.position + cam.right * lensPoint.x + cam.up * lensPoint.y;
+            segment.ray.direction = glm::normalize(focalPoint - segment.ray.origin);
+        }
+        else {
+            // Pinhole camera (no DOF)
+            segment.ray.origin = cam.position;
+            segment.ray.direction = rayDir;
+        }
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
@@ -963,6 +983,6 @@ void denoise(glm::vec3* colorBuffer, glm::vec3* normalBuffer, int width, int hei
     // Copy result back
     std::memcpy(colorBuffer, outputBuf.getData(), numPixels * 3 * sizeof(float));
 
-    std::cout << "OIDN denoising successful!\n";
+    //std::cout << "OIDN denoising successful!\n";
 }
 

@@ -116,17 +116,21 @@ void Scene::loadFromJSON(const std::string& jsonName)
         if (type == "mesh")
         {
 
-            //Add every single individual triangle as a TRIANGLE type geom!
-            glTFLoader loader = glTFLoader();
+            std::cout << "Loading mesh from: " << p["FILEPATH"] << "\n";
 
+            glTFLoader loader;
             const auto& filePath = p["FILEPATH"];
-            bool retLoadModel = loader.loadModel(filePath);
-            if (!retLoadModel) {
+
+            if (!loader.loadModel(filePath)) {
                 std::cout << "Error loading gltf model!\n";
                 exit(EXIT_FAILURE);
             }
 
-            triangles = loader.getTriangles();
+            std::vector<MeshTriangle> newTriangles = loader.getTriangles();
+            std::cout << "Loaded " << newTriangles.size() << " triangles\n";
+
+            int startIdx = triangles.size();
+            //std::cout << "Current triangle count: " << startIdx << "\n";
 
 
 
@@ -134,7 +138,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
 
 
-            for (int i = 0; i < triangles.size(); i++) {
+            for (int i = 0; i < newTriangles.size(); i++) {
                 Geom newGeom;
                 newGeom.type = TRI;
 
@@ -153,20 +157,22 @@ void Scene::loadFromJSON(const std::string& jsonName)
                     newGeom.translation, newGeom.rotation, newGeom.scale);
 
                 MeshTriangle transformedTri;
-                transformedTri.v0 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v0, 1.0f));
-                transformedTri.v1 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v1, 1.0f));
-                transformedTri.v2 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v2, 1.0f));
+                transformedTri.v0 = glm::vec3(newGeom.transform * glm::vec4(newTriangles[i].v0, 1.0f));
+                transformedTri.v1 = glm::vec3(newGeom.transform * glm::vec4(newTriangles[i].v1, 1.0f));
+                transformedTri.v2 = glm::vec3(newGeom.transform * glm::vec4(newTriangles[i].v2, 1.0f));
                 
                 transformedTri.materialId = newGeom.materialid;
 
-                triangles[i] = transformedTri;
+                //triangles[i] = transformedTri;
+                triangles.push_back(transformedTri);
 
-                geoms.push_back(newGeom);
+                //geoms.push_back(newGeom);
 
 
 
 
             }
+            std::cout << "Total triangles after this mesh: " << triangles.size() << "\n";
 
 
             //for (int i = 0; i < triangles.size(); i++) {
@@ -174,11 +180,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
             //        << " v0=(" << triangles[i].v0.x << "," << triangles[i].v0.y << "," << triangles[i].v0.z << ")\n";
             //}
 
-            int N = triangles.size();
-            bvhNodes.clear();
-            bvhNodes.resize(N * 2 - 1);
-            BuildBVH(bvhNodes, N);
-
+            //if (!triangles.empty()) {
+            //    std::cout << "Building BVH for all " << triangles.size() << " triangles\n";
+            //    int N = triangles.size();
+            //    bvhNodes.clear();
+            //    bvhNodes.resize(N * 2 - 1);
+            //    BuildBVH(bvhNodes, N);
+            //}
             //std::cout << "[BVH] Built with " << nodesUsed << " nodes for " << N << " triangles\n";
             //std::cout << "[BVH] triIdx size: " << triIdx.size() << "\n";
 
@@ -215,6 +223,20 @@ void Scene::loadFromJSON(const std::string& jsonName)
         }
 
     }
+
+    // BUILD BVH ONCE after ALL meshes loaded
+    if (!triangles.empty()) {
+        //std::cout << "\nBuilding BVH for all " << triangles.size() << " triangles\n";
+        int N = triangles.size();
+        bvhNodes.clear();
+        bvhNodes.resize(N * 2 - 1);
+        triIdx.clear();  // Important: clear triIdx before building
+        rootNodeIdx = 0;
+        nodesUsed = 1;
+        BuildBVH(bvhNodes, N);
+        //std::cout << "BVH complete with " << nodesUsed << " nodes\n";
+    }
+
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
@@ -230,6 +252,20 @@ void Scene::loadFromJSON(const std::string& jsonName)
     camera.position = glm::vec3(pos[0], pos[1], pos[2]);
     camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
     camera.up = glm::vec3(up[0], up[1], up[2]);
+
+    if (cameraData.contains("LENS_RADIUS")) {
+        camera.lensRadius = cameraData["LENS_RADIUS"];
+    }
+    else {
+        camera.lensRadius = 0.0f;
+    }
+
+    if (cameraData.contains("FOCAL_DISTANCE")) {
+        camera.focalDistance = cameraData["FOCAL_DISTANCE"];
+    }
+    else {
+        camera.focalDistance = 10.0f;
+    }
 
     //calculate fov based on resolution
     float yscaled = tan(fovy * (PI / 180));
@@ -266,32 +302,14 @@ void Scene::BuildBVH(std::vector<BVHNode>& bvhNodes, int N)
     }
 
     BVHNode& root = bvhNodes[rootNodeIdx];
-
-    //root.leftChild = root.rightChild = 0;
-
-    root.firstPrim = 0, root.primCount = N;
-
-
-
+    root.firstPrim = 0;
+    root.primCount = N;
 
     UpdateNodeBounds(rootNodeIdx, bvhNodes, N);
     Subdivide(rootNodeIdx, bvhNodes, N);
 
 
-
-    //std::vector<MeshTriangle> tris;
-    //tris =
-        //for (int i = 0; i < N; i++) tri[i].centroid =
-        //    (tri[i].vertex0 + tri[i].vertex1 + tri[i].vertex2) * 0.3333f;
-    // assign all triangles to root node
-    //BVHNode& root = bvhNode[rootNodeIdx];
-    //root.leftChild = root.rightChild = 0;
-    //root.firstPrim = 0, root.primCount = N;
-    //UpdateNodeBounds(rootNodeIdx);
-    // subdivide recursively
-    //Subdivide(rootNodeIdx);
 }
-
 void Scene::UpdateNodeBounds(int nodeIdx, std::vector<BVHNode>& bvhNodes, int N)
 {
     BVHNode& node = bvhNodes[nodeIdx];
