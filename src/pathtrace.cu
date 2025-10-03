@@ -82,7 +82,78 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
     }
 }
 
+__device__ glm::vec3 sampleNormalMap(const Texture* textures, int normalMapID, glm::vec2 uv) {
+    if (normalMapID < 0) return glm::vec3(0.0f, 0.0f, 1.0f);  // Default normal (pointing up in tangent space)
 
+    const Texture& tex = textures[normalMapID];
+    if (!tex.data) return glm::vec3(0.0f, 0.0f, 1.0f);
+
+    // Wrap UVs
+    uv.x = uv.x - floorf(uv.x);
+    uv.y = uv.y - floorf(uv.y);
+
+    // Sample texture
+    int x = (int)(uv.x * tex.width) % tex.width;
+    int y = (int)(uv.y * tex.height) % tex.height;
+    int index = y * tex.width + x;
+
+    glm::vec3 normalSample = tex.data[index];
+
+    // Convert from [0,1] to [-1,1]
+    return glm::normalize(normalSample * 2.0f - 1.0f);
+}
+
+__device__ glm::vec3 perturbNormal(const glm::vec3& geometricNormal, const glm::vec3& tangentNormal,
+    const glm::vec3& edge1, const glm::vec3& edge2,
+    const glm::vec2& deltaUV1, const glm::vec2& deltaUV2) {
+    float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+
+    glm::vec3 tangent = glm::normalize(f * (deltaUV2.y * edge1 - deltaUV1.y * edge2));
+    glm::vec3 bitangent = glm::normalize(f * (-deltaUV2.x * edge1 + deltaUV1.x * edge2));
+    glm::vec3 normal = glm::normalize(geometricNormal);
+
+    // Gram-Schmidt orthogonalize
+    tangent = glm::normalize(tangent - glm::dot(tangent, normal) * normal);
+
+    glm::mat3 TBN(tangent, bitangent, normal);
+
+    return glm::normalize(TBN * tangentNormal);
+}
+
+__device__ glm::vec3 applyNormalMap(
+    const glm::vec3& geometricNormal,
+    const glm::vec3& tangentSpaceNormal,
+    const MeshTriangle& tri)
+{
+    // Compute edges and delta UVs
+    glm::vec3 edge1 = tri.edge1;
+    glm::vec3 edge2 = tri.edge2;
+    glm::vec2 deltaUV1 = tri.deltaUV1;
+    glm::vec2 deltaUV2 = tri.deltaUV2;
+
+    // Compute tangent and bitangent
+    float det = deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y;
+    if (fabsf(det) < 0.00001f) {
+        // Degenerate UV mapping, just return geometric normal
+        return geometricNormal;
+    }
+
+    float invDet = 1.0f / det;
+    glm::vec3 tangent = invDet * (deltaUV2.y * edge1 - deltaUV1.y * edge2);
+    glm::vec3 bitangent = invDet * (-deltaUV2.x * edge1 + deltaUV1.x * edge2);
+
+    // Gram-Schmidt orthogonalize
+    glm::vec3 N = glm::normalize(geometricNormal);
+    glm::vec3 T = glm::normalize(tangent - glm::dot(tangent, N) * N);
+    glm::vec3 B = glm::cross(N, T);
+
+    // Transform tangent-space normal to world space
+    glm::vec3 worldNormal = T * tangentSpaceNormal.x +
+        B * tangentSpaceNormal.y +
+        N * tangentSpaceNormal.z;
+
+    return glm::normalize(worldNormal);
+}
 
 __device__ glm::vec3 sampleTexture(const Texture* textures, int textureID, glm::vec2 uv) {
     if (textureID < 0) return glm::vec3(1.0f);
@@ -556,6 +627,7 @@ __global__ void computeIntersections(
                 normal = tmpNormal;
                 hitBVH = true;
                 intersections[path_index].uv = tmpUV;
+                intersections[path_index].triangleIndex = hitTriIdx;
             }
 
             // Set intersection data based on what was hit
@@ -720,7 +792,8 @@ __global__ void computeBSDF(int iter,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
     Material* materials,
-    Texture* textures)
+    Texture* textures,
+    MeshTriangle* triangles)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
     
@@ -772,6 +845,22 @@ __global__ void computeBSDF(int iter,
             //}
             
             mat.color *= texColor;
+        }
+
+        glm::vec3 shadingNormal = shadInt.surfaceNormal;
+        if (mat.hasNormalMap && shadInt.triangleIndex >= 0) {
+            glm::vec3 tangentNormal = sampleNormalMap(textures, mat.normalMapID, shadInt.uv);
+            shadingNormal = applyNormalMap(shadInt.surfaceNormal, tangentNormal,
+                triangles[shadInt.triangleIndex]);
+
+            // VISUALIZE THE NORMAL MAP
+            //pathSegments[index].remainingBounces = 0;
+            //pathSegments[index].color = shadingNormal * 0.5f + 0.5f;
+            //return;
+        }
+
+        if (glm::dot(shadingNormal, wo) > 0.0f) {
+            shadingNormal = -shadingNormal;
         }
 
 
@@ -937,7 +1026,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_intersections,
             dev_paths,
             dev_materials,
-            dev_textures
+            dev_textures,
+            dev_triangleBuffer
         );
         checkCUDAError("computeBSDF");
 

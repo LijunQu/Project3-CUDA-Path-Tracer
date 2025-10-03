@@ -124,6 +124,19 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 newMaterial.hasTexture = false;
             }
 
+            // ADD NORMAL MAP LOADING
+            if (p.contains("NORMALMAP")) {
+                std::string normalPath = p["NORMALMAP"];
+                newMaterial.normalMapID = textures.size();
+                newMaterial.hasNormalMap = true;
+                textures.push_back(loadTexture(normalPath));
+                std::cout << "Loaded normal map for material: " << name << "\n";
+            }
+            else {
+                newMaterial.normalMapID = -1;
+                newMaterial.hasNormalMap = false;
+            }
+
         }
         else if (p["TYPE"] == "Emitting")
         {
@@ -212,6 +225,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 transformedTri.uv0 = newTriangles[i].uv0;
                 transformedTri.uv1 = newTriangles[i].uv1;
                 transformedTri.uv2 = newTriangles[i].uv2;
+
+                transformedTri.edge1 = transformedTri.v1 - transformedTri.v0;
+                transformedTri.edge2 = transformedTri.v2 - transformedTri.v0;
+                transformedTri.deltaUV1 = transformedTri.uv1 - transformedTri.uv0;
+                transformedTri.deltaUV2 = transformedTri.uv2 - transformedTri.uv0;
 
                 transformedTri.materialId = newGeom.materialid;
 

@@ -16,7 +16,8 @@
         {
             "TYPE":"Diffuse",
             "RGB":[0.98, 0.98, 0.98],
-            "TEXTURE":"C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/models/Texture.png"
+            "TEXTURE":"C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/models/Avocado_baseColor.png",
+            "NORMALMAP":"C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/models/Avocado_normal.png"
         },
         "diffuse_red":
         {
@@ -105,10 +106,10 @@
         {
             "TYPE":"mesh",
             "MATERIAL":"diffuse_model",
-            "FILEPATH":"C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/models/Fox.gltf",
-            "TRANS":[-1.0,4.0,-1.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.05,0.05,0.05]
+            "FILEPATH":"C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/models/Avocado.gltf",
+            "TRANS":[0.0,0.0,0.0],
+            "ROTAT":[0.0,180.0,0.0],
+            "SCALE":[65.0,65.0,65.0]
         }
     ]
 }

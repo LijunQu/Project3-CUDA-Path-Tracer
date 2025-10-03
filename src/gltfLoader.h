@@ -15,6 +15,9 @@ struct MeshTriangle {
     glm::vec3 centroid;
     glm::vec2 uv0, uv1, uv2;
     int materialId;
+
+    glm::vec3 edge1, edge2;
+    glm::vec2 deltaUV1, deltaUV2;
 };
 
 class glTFLoader {

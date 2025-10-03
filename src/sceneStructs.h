@@ -49,7 +49,7 @@ struct Material
     float emittance;
 
     int textureID;
-    int noremalMapID;
+    int normalMapID;
     bool hasTexture;
     bool hasNormalMap;
 };
@@ -100,6 +100,7 @@ struct ShadeableIntersection
   glm::vec3 surfaceNormal;
   int materialId;
   glm::vec2 uv;
+  int triangleIndex;
 };
 
 
