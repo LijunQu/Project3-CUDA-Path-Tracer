@@ -106,7 +106,7 @@ void glTFLoader::processModel(const tinygltf::Model& model) {
                     const size_t offs = bv.byteOffset + acc.byteOffset;
                     const float* ptr = reinterpret_cast<const float*>(&buf.data[offs]);
                     out.uvs.assign(ptr, ptr + acc.count * 2);
-                    std::cout << "Loaded " << acc.count << " UV coordinates\n";
+                    //std::cout << "Loaded " << acc.count << " UV coordinates\n";
                 }
                 else {
                     std::cout << "Unsupported TEXCOORD format\n";

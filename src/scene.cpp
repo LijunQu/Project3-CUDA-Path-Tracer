@@ -238,7 +238,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
                 //geoms.push_back(newGeom);
 
-
+                //if (i == 0) {
+                //    std::cout << "First triangle after transform:\n";
+                //    std::cout << "  v0: (" << transformedTri.v0.x << ", " << transformedTri.v0.y << ", " << transformedTri.v0.z << ")\n";
+                //    std::cout << "  v1: (" << transformedTri.v1.x << ", " << transformedTri.v1.y << ", " << transformedTri.v1.z << ")\n";
+                //    std::cout << "  v2: (" << transformedTri.v2.x << ", " << transformedTri.v2.y << ", " << transformedTri.v2.z << ")\n";
+                //}
 
 
             }
@@ -337,6 +342,16 @@ void Scene::loadFromJSON(const std::string& jsonName)
         camera.focalDistance = 10.0f;
     }
 
+    // Load environment map if specified
+    if (cameraData.contains("ENVMAP")) {
+        std::string envPath = cameraData["ENVMAP"];
+        envMap = loadTexture(envPath);
+        if (envMap.data) {
+            hasEnvMap = true;
+            std::cout << "Loaded environment map: " << envPath << "\n";
+        }
+    }
+
     //calculate fov based on resolution
     float yscaled = tan(fovy * (PI / 180));
     float xscaled = (yscaled * camera.resolution.x) / camera.resolution.y;
@@ -353,6 +368,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+
+
+
 
 
 }

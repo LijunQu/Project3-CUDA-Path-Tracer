@@ -57,59 +57,22 @@
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
-        "UP":[0.0,1.0,0.0]
+        "UP":[0.0,1.0,0.0],
+        "LENS_RADIUS": 0.0,
+        "FOCAL_DISTANCE": 10.0,
+        "ENVMAP": "C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/envMaps/Frozen_Waterfall_Ref.hdr"
     },
     "Objects":
     [
-        {
-            "TYPE":"cube",
-            "MATERIAL":"light",
-            "TRANS":[0.0,10.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,0.3,3.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_white",
-            "TRANS":[0.0,0.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[10.0,0.01,10.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_white",
-            "TRANS":[0.0,10.0,0.0],
-            "ROTAT":[0.0,0.0,90.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_white",
-            "TRANS":[0.0,5.0,-5.0],
-            "ROTAT":[0.0,90.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_red",
-            "TRANS":[-5.0,5.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_green",
-            "TRANS":[5.0,5.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
+
+
         {
             "TYPE":"mesh",
             "MATERIAL":"diffuse_model",
             "FILEPATH":"C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/models/Avocado.gltf",
-            "TRANS":[0.0,0.0,-2.0],
+            "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,180.0,0.0],
-            "SCALE":[65.0,65.0,65.0]
+            "SCALE":[100.0,100.0,100.0]
         }
     ]
 }

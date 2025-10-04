@@ -306,7 +306,7 @@ __host__ __device__ float IntersectBVH(
 
         bool aabbHit = IntersectAABB(r, node.aabbMin, node.aabbMax);
 
-#ifndef __CUDA_ARCH__  // Only print on CPU for debugging
+#ifndef __CUDA_ARCH__
         if (nodeIdx == 0) {
             printf("AABB test: hit=%d, ray.origin=(%.2f,%.2f,%.2f), ray.dir=(%.2f,%.2f,%.2f)\n",
                 aabbHit, r.origin.x, r.origin.y, r.origin.z,

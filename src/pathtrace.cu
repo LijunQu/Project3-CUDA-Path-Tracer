@@ -82,6 +82,25 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
     }
 }
 
+__device__ glm::vec3 sampleEnvironmentMap(const Texture* envMap, const glm::vec3& direction) {
+    if (!envMap || !envMap->data) return glm::vec3(0.0f);
+
+    // Convert direction to spherical coordinates
+    float theta = acosf(glm::clamp(direction.y, -1.0f, 1.0f));
+    float phi = atan2f(direction.z, direction.x);
+
+    // Convert to UV coordinates [0, 1]
+    float u = (phi + PI) / (2.0f * PI);
+    float v = theta / PI;
+
+    // Sample from environment map
+    int x = (int)(u * envMap->width) % envMap->width;
+    int y = (int)(v * envMap->height) % envMap->height;
+
+    int index = y * envMap->width + x;
+    return envMap->data[index];
+}
+
 __device__ glm::vec3 sampleNormalMap(const Texture* textures, int normalMapID, glm::vec2 uv) {
     if (normalMapID < 0) return glm::vec3(0.0f, 0.0f, 1.0f);  // Default normal (pointing up in tangent space)
 
@@ -349,6 +368,7 @@ static MeshTriangle* dev_triangleBuffer = NULL;
 static BVHNode* dev_bvhNodes = NULL;
 static int* dev_triIdx = NULL;
 static glm::vec3* dev_normals = NULL;
+static Texture* dev_envMap = NULL;
 
 
 void InitDataContainer(GuiDataContainer* imGuiData)
@@ -442,6 +462,21 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_normals, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_normals, 0, pixelcount * sizeof(glm::vec3));
 
+    // Upload environment map
+    if (scene->hasEnvMap) {
+        std::cout << "Uploading environment map to GPU\n";
+        cudaMalloc(&dev_envMap, sizeof(Texture));
+
+        Texture devEnvMap = scene->envMap;
+        glm::vec3* devData;
+        size_t dataSize = devEnvMap.width * devEnvMap.height * sizeof(glm::vec3);
+        cudaMalloc(&devData, dataSize);
+        cudaMemcpy(devData, devEnvMap.data, dataSize, cudaMemcpyHostToDevice);
+        devEnvMap.data = devData;
+
+        cudaMemcpy(dev_envMap, &devEnvMap, sizeof(Texture), cudaMemcpyHostToDevice);
+    }
+
     checkCUDAError("pathtraceInit");
 }
 
@@ -470,6 +505,11 @@ void pathtraceFree()
     if (dev_textures) {
         cudaFree(dev_textures);
         dev_textures = NULL;
+    }
+
+    if (dev_envMap) {
+        cudaFree(dev_envMap);
+        dev_envMap = NULL;
     }
 
     checkCUDAError("pathtraceFree");
@@ -598,7 +638,7 @@ __global__ void computeIntersections(
                     }
                 }
             }
-
+          
             // Test BVH
             float tHit = FLT_MAX;
             glm::vec3 tmpIntersect, tmpNormal;
@@ -628,6 +668,7 @@ __global__ void computeIntersections(
                 hitBVH = true;
                 intersections[path_index].uv = tmpUV;
                 intersections[path_index].triangleIndex = hitTriIdx;
+                intersections[path_index].materialId = triangles[hitTriIdx].materialId;
             }
 
             // Set intersection data based on what was hit
@@ -638,6 +679,7 @@ __global__ void computeIntersections(
                 if (hitBVH) {
                     if (hitTriIdx >= 0 && hitTriIdx < numTriangles) {
                         intersections[path_index].materialId = triangles[hitTriIdx].materialId;
+                        hit_geom_index = -2;
                     }
                 }
                 else {
@@ -793,7 +835,9 @@ __global__ void computeBSDF(int iter,
     PathSegment* pathSegments,
     Material* materials,
     Texture* textures,
-    MeshTriangle* triangles)
+    MeshTriangle* triangles,
+    Texture* envMap,
+    bool hasEnvMap)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
     
@@ -822,7 +866,14 @@ __global__ void computeBSDF(int iter,
 
     if (shadInt.t <= 0.0f) {
         pathSegments[index].remainingBounces = 0;
-        pathSegments[index].color = glm::vec3(0.0f);
+        // Sample environment map if available
+        if (hasEnvMap) {
+            glm::vec3 envColor = sampleEnvironmentMap(envMap, pathSegments[index].ray.direction);
+            pathSegments[index].color *= envColor;
+        }
+        else {
+            pathSegments[index].color = glm::vec3(0.0f);
+        }
         return;
     }
     else {
@@ -835,6 +886,12 @@ __global__ void computeBSDF(int iter,
         //if (index == 320000) {
         //    printf("Material hasTexture: %d, textureID: %d\n", mat.hasTexture, mat.textureID);
         //}
+
+        //if (index == 0 && shadInt.t > 0.0f) {
+        //    printf("Hit at t=%f, matId=%d, hasTexture=%d, emittance=%f\n",
+        //        shadInt.t, shadInt.materialId, mat.hasTexture, mat.emittance);
+        //}
+
 
         if (mat.hasTexture) {
             glm::vec3 texColor = sampleTexture(textures, mat.textureID, shadInt.uv);
@@ -921,7 +978,7 @@ __global__ void computeBSDF(int iter,
                 pathSegments[index].remainingBounces = 0;
             }
             else {
-                pathSegments[index].color /= (1 - q);
+                pathSegments[index].color /= (1.0f - q);
             }
 
         }
@@ -1057,7 +1114,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_materials,
             dev_textures,
-            dev_triangleBuffer
+            dev_triangleBuffer,
+            dev_envMap,
+            hst_scene->hasEnvMap
         );
         checkCUDAError("computeBSDF");
 
