@@ -4,7 +4,7 @@
 #include "utilities.h"
 
 #define doDenoise 1
-
+#define doRussianRoulette 1
 
 void InitDataContainer(GuiDataContainer* guiData);
 void pathtraceInit(Scene *scene);

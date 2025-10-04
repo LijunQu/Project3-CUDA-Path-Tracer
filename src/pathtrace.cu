@@ -870,6 +870,9 @@ __global__ void computeBSDF(int iter,
             return;
         }
         else {
+
+ 
+
             thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, pathSegments[index].remainingBounces);
             if (pathSegments[index].remainingBounces > 0) {
                 --pathSegments[index].remainingBounces;
@@ -897,6 +900,33 @@ __global__ void computeBSDF(int iter,
 
         }
 
+
+#if doRussianRoulette
+        const int RR_START_DEPTH = 3;
+        const int originalDepth = 8;
+        int currentBounce = originalDepth - pathSegments[index].remainingBounces;
+
+        if (currentBounce >= RR_START_DEPTH) {
+
+            float luminance = 0.2126f * pathSegments[index].color.x +
+                0.6152f * pathSegments[index].color.y +
+                0.1722f * pathSegments[index].color.z;
+
+            float q = glm::max(0.05f, 1 - luminance);
+
+            thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, currentBounce);
+            thrust::uniform_real_distribution<float> u01(0.0f, 1.0f);
+
+            if (u01(rng) < q) {
+                pathSegments[index].remainingBounces = 0;
+            }
+            else {
+                pathSegments[index].color /= (1 - q);
+            }
+
+        }
+
+#endif
 
     }
     
