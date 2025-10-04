@@ -1,4 +1,4 @@
-// gltfLoader.cpp — the ONLY TU that builds tinygltf
+// gltfLoader.cpp the ONLY TU that builds tinygltf
 #define TINYGLTF_IMPLEMENTATION
 #define TINYGLTF_NOEXCEPTION
 #define TINYGLTF_NO_STB_IMAGE
@@ -167,7 +167,7 @@ std::vector<MeshTriangle> glTFLoader::getTriangles() const {
             t.v0 = getVertex(m, m.indices[i + 0]);
             t.v1 = getVertex(m, m.indices[i + 1]);
             t.v2 = getVertex(m, m.indices[i + 2]);
-            
+
 
             if (hasUVs) {
                 t.uv0 = getUV(m, m.indices[i + 0]);
@@ -185,6 +185,5 @@ std::vector<MeshTriangle> glTFLoader::getTriangles() const {
     }
     return tris;
 }
-
 
 

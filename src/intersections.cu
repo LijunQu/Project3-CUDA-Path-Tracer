@@ -294,7 +294,7 @@ __host__ __device__ float IntersectBVH(
 {
     if (!bvhNodes || !triangles || !triIdx) return -1.0f;
 
-    int stack[32];
+    int stack[64];
     int stackPtr = 0;
     stack[stackPtr++] = rootNodeIdx;
 
@@ -319,6 +319,7 @@ __host__ __device__ float IntersectBVH(
         if (node.primCount > 0) {  // Leaf
             for (int i = 0; i < node.primCount; i++) {
                 int triIndex = triIdx[node.firstPrim + i];
+
                 glm::vec3 tmpInt, tmpNorm;
                 bool tmpOut;
                 glm::vec2 tmpUV;

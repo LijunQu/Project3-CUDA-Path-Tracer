@@ -407,7 +407,7 @@ void pathtraceInit(Scene* scene)
     //    std::cout << "( " << triangles[i].v2.x << ", " << triangles[i].v2.y << ", " << triangles[i].v2.z << " )\n";
     //    std::cout << "\n";
     //}
-    std::cout << "sizeof triangle: " << triangles.size() << "\n";
+    //std::cout << "sizeof triangle: " << triangles.size() << "\n";
 
     //std::cout << "Triangle 0: v0=(" << triangles[0].v0.x << "," << triangles[0].v0.y << "," << triangles[0].v0.z << ")\n";
     //std::cout << "           v1=(" << triangles[0].v1.x << "," << triangles[0].v1.y << "," << triangles[0].v1.z << ")\n";
@@ -464,7 +464,7 @@ void pathtraceInit(Scene* scene)
 
     // Upload environment map
     if (scene->hasEnvMap) {
-        std::cout << "Uploading environment map to GPU\n";
+        //std::cout << "Uploading environment map to GPU\n";
         cudaMalloc(&dev_envMap, sizeof(Texture));
 
         Texture devEnvMap = scene->envMap;
@@ -614,7 +614,7 @@ __global__ void computeIntersections(
 
 
         bool doBVH = true;
-        
+        bool hitBVH = false;
         if (doBVH) {
             // Test cubes/spheres first
             for (int i = 0; i < geoms_size; i++) {
@@ -660,7 +660,7 @@ __global__ void computeIntersections(
             );
 
             // Store which type of geometry we hit
-            bool hitBVH = false;
+            hitBVH = false;
             if (hitTriIdx >= 0 && tHit > 0.0f && tHit < t_min) {
                 t_min = tHit;
                 intersect_point = tmpIntersect;
@@ -679,7 +679,7 @@ __global__ void computeIntersections(
                 if (hitBVH) {
                     if (hitTriIdx >= 0 && hitTriIdx < numTriangles) {
                         intersections[path_index].materialId = triangles[hitTriIdx].materialId;
-                        hit_geom_index = -2;
+                        //hit_geom_index = -2;
                     }
                 }
                 else {
@@ -726,7 +726,7 @@ __global__ void computeIntersections(
             }
         }
 
-        if (hit_geom_index == -1)
+        if (hit_geom_index == -1 && !hitBVH)
         {
             intersections[path_index].t = -1.0f;
         }
@@ -903,6 +903,12 @@ __global__ void computeBSDF(int iter,
             
             mat.color *= texColor;
         }
+
+
+        if (mat.hasTexture && (shadInt.uv.x != shadInt.uv.x || shadInt.uv.y != shadInt.uv.y)) {
+            printf("Invalid UV at triangle %d: (%f, %f)\n", shadInt.triangleIndex, shadInt.uv.x, shadInt.uv.y);
+        }
+
 
         glm::vec3 shadingNormal = shadInt.surfaceNormal;
         if (mat.hasNormalMap && shadInt.triangleIndex >= 0) {

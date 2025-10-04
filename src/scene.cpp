@@ -221,7 +221,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 transformedTri.v0 = glm::vec3(newGeom.transform * glm::vec4(newTriangles[i].v0, 1.0f));
                 transformedTri.v1 = glm::vec3(newGeom.transform * glm::vec4(newTriangles[i].v1, 1.0f));
                 transformedTri.v2 = glm::vec3(newGeom.transform * glm::vec4(newTriangles[i].v2, 1.0f));
-                
+
                 transformedTri.uv0 = newTriangles[i].uv0;
                 transformedTri.uv1 = newTriangles[i].uv1;
                 transformedTri.uv2 = newTriangles[i].uv2;

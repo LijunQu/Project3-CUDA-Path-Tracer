@@ -36,4 +36,7 @@ public:
 
     Texture envMap;
     bool hasEnvMap = false;
+
+    int convertGLTFMaterial(const tinygltf::Model& model, int gltfMatIdx);
+    std::unordered_map<int, int> gltfToSceneMaterialMap;
 };
