@@ -10,6 +10,7 @@
 #include <iostream>
 #include <string>
 #include <unordered_map>
+//#include <tiny_gltf.h>
 #define STB_IMAGE_IMPLEMENTATION
 
 
@@ -176,102 +177,89 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
         if (type == "mesh")
         {
-
             std::cout << "Loading mesh from: " << p["FILEPATH"] << "\n";
 
             glTFLoader loader;
-            const auto& filePath = p["FILEPATH"];
+            const std::string filePath = p["FILEPATH"];
 
             if (!loader.loadModel(filePath)) {
                 std::cout << "Error loading gltf model!\n";
                 exit(EXIT_FAILURE);
             }
 
+            // Get directory for texture paths
+            size_t lastSlash = filePath.find_last_of("/\\");
+            std::string dir = (lastSlash != std::string::npos) ?
+                filePath.substr(0, lastSlash + 1) : "";
+
+            // Convert glTF materials to scene materials
+            std::vector<int> gltfMatToSceneMat(loader.getMaterialCount());
+
+            for (int i = 0; i < loader.getMaterialCount(); i++) {
+                Material newMat{};
+                newMat.color = glm::vec3(1.0f);
+
+                std::string baseColorUri, normalUri;
+                if (loader.getMaterialTextures(i, baseColorUri, normalUri)) {
+                    // Load base color texture
+                    if (!baseColorUri.empty()) {
+                        std::string fullTexPath = dir + baseColorUri;
+                        newMat.textureID = textures.size();
+                        newMat.hasTexture = true;
+                        textures.push_back(loadTexture(fullTexPath));
+                        std::cout << "  Loaded texture: " << fullTexPath << "\n";
+                    }
+
+                    // Load normal map
+                    if (!normalUri.empty()) {
+                        std::string fullTexPath = dir + normalUri;
+                        newMat.normalMapID = textures.size();
+                        newMat.hasNormalMap = true;
+                        textures.push_back(loadTexture(fullTexPath));
+                        std::cout << "  Loaded normal map: " << fullTexPath << "\n";
+                    }
+                }
+
+                gltfMatToSceneMat[i] = materials.size();
+                materials.push_back(newMat);
+            }
+
             std::vector<MeshTriangle> newTriangles = loader.getTriangles();
             std::cout << "Loaded " << newTriangles.size() << " triangles\n";
 
-            int startIdx = triangles.size();
-            //std::cout << "Current triangle count: " << startIdx << "\n";
+            // Apply material mapping and transform
+            const auto& trans = p["TRANS"];
+            const auto& rotat = p["ROTAT"];
+            const auto& scale = p["SCALE"];
 
+            glm::vec3 translation = glm::vec3(trans[0], trans[1], trans[2]);
+            glm::vec3 rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+            glm::vec3 scaleVec = glm::vec3(scale[0], scale[1], scale[2]);
 
+            glm::mat4 transform = utilityCore::buildTransformationMatrix(
+                translation, rotation, scaleVec);
 
+            for (auto& tri : newTriangles) {
+                // Map glTF material to scene material
+                if (tri.gltfMaterialIndex >= 0 &&
+                    tri.gltfMaterialIndex < gltfMatToSceneMat.size()) {
+                    tri.materialId = gltfMatToSceneMat[tri.gltfMaterialIndex];
+                }
 
+                // Apply transform
+                tri.v0 = glm::vec3(transform * glm::vec4(tri.v0, 1.0f));
+                tri.v1 = glm::vec3(transform * glm::vec4(tri.v1, 1.0f));
+                tri.v2 = glm::vec3(transform * glm::vec4(tri.v2, 1.0f));
 
+                tri.edge1 = tri.v1 - tri.v0;
+                tri.edge2 = tri.v2 - tri.v0;
+                tri.deltaUV1 = tri.uv1 - tri.uv0;
+                tri.deltaUV2 = tri.uv2 - tri.uv0;
 
-
-            for (int i = 0; i < newTriangles.size(); i++) {
-                Geom newGeom;
-                newGeom.type = TRI;
-
-                newGeom.triangle_index = i;
-
-                newGeom.materialid = MatNameToID[p["MATERIAL"]];
-
-                const auto& trans = p["TRANS"];
-                const auto& rotat = p["ROTAT"];
-                const auto& scale = p["SCALE"];
-                newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
-                newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-                newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
-
-                newGeom.transform = utilityCore::buildTransformationMatrix(
-                    newGeom.translation, newGeom.rotation, newGeom.scale);
-
-                MeshTriangle transformedTri;
-                transformedTri.v0 = glm::vec3(newGeom.transform * glm::vec4(newTriangles[i].v0, 1.0f));
-                transformedTri.v1 = glm::vec3(newGeom.transform * glm::vec4(newTriangles[i].v1, 1.0f));
-                transformedTri.v2 = glm::vec3(newGeom.transform * glm::vec4(newTriangles[i].v2, 1.0f));
-
-                transformedTri.uv0 = newTriangles[i].uv0;
-                transformedTri.uv1 = newTriangles[i].uv1;
-                transformedTri.uv2 = newTriangles[i].uv2;
-
-                transformedTri.edge1 = transformedTri.v1 - transformedTri.v0;
-                transformedTri.edge2 = transformedTri.v2 - transformedTri.v0;
-                transformedTri.deltaUV1 = transformedTri.uv1 - transformedTri.uv0;
-                transformedTri.deltaUV2 = transformedTri.uv2 - transformedTri.uv0;
-
-                transformedTri.materialId = newGeom.materialid;
-
-                //triangles[i] = transformedTri;
-                triangles.push_back(transformedTri);
-
-                //geoms.push_back(newGeom);
-
-                //if (i == 0) {
-                //    std::cout << "First triangle after transform:\n";
-                //    std::cout << "  v0: (" << transformedTri.v0.x << ", " << transformedTri.v0.y << ", " << transformedTri.v0.z << ")\n";
-                //    std::cout << "  v1: (" << transformedTri.v1.x << ", " << transformedTri.v1.y << ", " << transformedTri.v1.z << ")\n";
-                //    std::cout << "  v2: (" << transformedTri.v2.x << ", " << transformedTri.v2.y << ", " << transformedTri.v2.z << ")\n";
-                //}
-
-
+                triangles.push_back(tri);
             }
+
             std::cout << "Total triangles after this mesh: " << triangles.size() << "\n";
-
-
-            //for (int i = 0; i < triangles.size(); i++) {
-            //    std::cout << "Triangle " << i << ": materialId=" << triangles[i].materialId
-            //        << " v0=(" << triangles[i].v0.x << "," << triangles[i].v0.y << "," << triangles[i].v0.z << ")\n";
-            //}
-
-            //if (!triangles.empty()) {
-            //    std::cout << "Building BVH for all " << triangles.size() << " triangles\n";
-            //    int N = triangles.size();
-            //    bvhNodes.clear();
-            //    bvhNodes.resize(N * 2 - 1);
-            //    BuildBVH(bvhNodes, N);
-            //}
-            //std::cout << "[BVH] Built with " << nodesUsed << " nodes for " << N << " triangles\n";
-            //std::cout << "[BVH] triIdx size: " << triIdx.size() << "\n";
-
-            //std::cout << "[BVH] Root AABB: min=(" << bvhNodes[0].aabbMin.x << ","
-            //    << bvhNodes[0].aabbMin.y << "," << bvhNodes[0].aabbMin.z << ") max=("
-            //    << bvhNodes[0].aabbMax.x << "," << bvhNodes[0].aabbMax.y << ","
-            //    << bvhNodes[0].aabbMax.z << ")\n";
-
-            //std::cout << "[GLTF-TRIS] " << triangles.size() << "\n";
-
         }
         else {
             Geom newGeom;

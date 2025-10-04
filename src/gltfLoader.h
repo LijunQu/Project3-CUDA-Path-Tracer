@@ -4,6 +4,7 @@
 #include <string>
 #include <cstdint>
 #include "sceneStructs.h"
+#include "tiny_gltf.h" 
 
 // Forward-declare, so this header does NOT pull tiny_gltf.h into other files.
 namespace tinygltf { class Model; }
@@ -18,6 +19,7 @@ struct MeshTriangle {
 
     glm::vec3 edge1, edge2;
     glm::vec2 deltaUV1, deltaUV2;
+    int gltfMaterialIndex = -1;
 };
 
 class glTFLoader {
@@ -26,6 +28,7 @@ public:
         std::vector<float>   positions;  // x y z packed
         std::vector<uint32_t> indices;
         std::vector<float> uvs;
+        int gltfMaterialIndex = -1;
     };
 
     glTFLoader() = default;
@@ -36,8 +39,13 @@ public:
     // Build triangles from all meshes (positions + indices).
     std::vector<MeshTriangle> getTriangles() const;
 
+    int glTFLoader::getMaterialCount() const;
+
+    bool glTFLoader::getMaterialTextures(int matIdx, std::string& baseColorUri, std::string& normalUri) const;
+
 private:
     std::vector<Mesh> meshes_;
+    tinygltf::Model model_;
 
     glm::vec3 getVertex(const Mesh& mesh, uint32_t index) const {
         const size_t i = static_cast<size_t>(index) * 3;

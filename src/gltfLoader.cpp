@@ -3,8 +3,7 @@
 #define TINYGLTF_NOEXCEPTION
 #define TINYGLTF_NO_STB_IMAGE
 #define TINYGLTF_NO_STB_IMAGE_WRITE
-#include "tiny_gltf.h"           // include once, here
-#include "gltfLoader.h"          // your header
+#include "gltfLoader.h" 
 
 #include <iostream>
 #include <cstring>
@@ -66,7 +65,8 @@ bool glTFLoader::loadModel(const std::string& filename) {
     }
 
     meshes_.clear();
-    processModel(model);
+    model_ = model;
+    processModel(model_);
     return true;
 }
 
@@ -75,6 +75,9 @@ void glTFLoader::processModel(const tinygltf::Model& model) {
     for (const auto& mesh : model.meshes) {
         for (const auto& prim : mesh.primitives) {
             Mesh out;
+
+
+            out.gltfMaterialIndex = prim.material;
 
             // POSITION (required)
             auto it = prim.attributes.find("POSITION");
@@ -180,6 +183,7 @@ std::vector<MeshTriangle> glTFLoader::getTriangles() const {
                 t.uv2 = glm::vec2(0.0f, 1.0f);
             }
 
+            t.gltfMaterialIndex = m.gltfMaterialIndex;
             tris.push_back(t);
         }
     }
@@ -187,3 +191,36 @@ std::vector<MeshTriangle> glTFLoader::getTriangles() const {
 }
 
 
+int glTFLoader::getMaterialCount() const {
+    return model_.materials.size();
+}
+
+
+bool glTFLoader::getMaterialTextures(int matIdx, std::string& baseColorUri, std::string& normalUri) const {
+    if (matIdx < 0 || matIdx >= model_.materials.size()) return false;
+
+    const auto& mat = model_.materials[matIdx];
+
+    baseColorUri.clear();
+    normalUri.clear();
+
+    // Get base color texture
+    int baseTexIdx = mat.pbrMetallicRoughness.baseColorTexture.index;
+    if (baseTexIdx >= 0 && baseTexIdx < model_.textures.size()) {
+        const auto& tex = model_.textures[baseTexIdx];
+        if (tex.source >= 0 && tex.source < model_.images.size()) {
+            baseColorUri = model_.images[tex.source].uri;
+        }
+    }
+
+    // Get normal texture
+    int normTexIdx = mat.normalTexture.index;
+    if (normTexIdx >= 0 && normTexIdx < model_.textures.size()) {
+        const auto& tex = model_.textures[normTexIdx];
+        if (tex.source >= 0 && tex.source < model_.images.size()) {
+            normalUri = model_.images[tex.source].uri;
+        }
+    }
+
+    return true;
+}
