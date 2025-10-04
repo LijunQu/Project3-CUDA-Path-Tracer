@@ -33,4 +33,7 @@ public:
     std::vector<BVHNode> bvhNodes;
 
     int rootNodeIdx = 0, nodesUsed = 1;
+
+    Texture envMap;
+    bool hasEnvMap = false;
 };
