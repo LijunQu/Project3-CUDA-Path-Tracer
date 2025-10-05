@@ -245,13 +245,19 @@ int glTFLoader::getMaterialCount() const {
 }
 
 
-bool glTFLoader::getMaterialTextures(int matIdx, std::string& baseColorUri, std::string& normalUri) const {
+bool glTFLoader::getMaterialTextures(int matIdx, std::string& baseColorUri, std::string& normalUri,
+    std::string& metallicRoughnessUri, float& metallic, float& roughness) const {
     if (matIdx < 0 || matIdx >= model_.materials.size()) return false;
 
     const auto& mat = model_.materials[matIdx];
 
     baseColorUri.clear();
     normalUri.clear();
+    metallicRoughnessUri.clear();
+
+    // Get PBR values (defaults if not specified)
+    metallic = mat.pbrMetallicRoughness.metallicFactor;
+    roughness = mat.pbrMetallicRoughness.roughnessFactor;
 
     // Get base color texture
     int baseTexIdx = mat.pbrMetallicRoughness.baseColorTexture.index;
@@ -268,6 +274,15 @@ bool glTFLoader::getMaterialTextures(int matIdx, std::string& baseColorUri, std:
         const auto& tex = model_.textures[normTexIdx];
         if (tex.source >= 0 && tex.source < model_.images.size()) {
             normalUri = model_.images[tex.source].uri;
+        }
+    }
+
+    // Get metallic-roughness texture
+    int mrTexIdx = mat.pbrMetallicRoughness.metallicRoughnessTexture.index;
+    if (mrTexIdx >= 0 && mrTexIdx < model_.textures.size()) {
+        const auto& tex = model_.textures[mrTexIdx];
+        if (tex.source >= 0 && tex.source < model_.images.size()) {
+            metallicRoughnessUri = model_.images[tex.source].uri;
         }
     }
 

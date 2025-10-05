@@ -52,12 +52,19 @@ struct Material
     int normalMapID;
     bool hasTexture;
     bool hasNormalMap;
+
+    // ADD PBR PROPERTIES
+    float metallic;
+    float roughness;
+    int metallicRoughnessTextureID;
+    bool hasMetallicRoughnessTexture;
 };
 
 struct Texture {
     int width;
     int height;
     glm::vec3* data;
+
 };
 
 struct Camera

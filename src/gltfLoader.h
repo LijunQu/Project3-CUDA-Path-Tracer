@@ -43,7 +43,8 @@ public:
 
     int glTFLoader::getMaterialCount() const;
 
-    bool glTFLoader::getMaterialTextures(int matIdx, std::string& baseColorUri, std::string& normalUri) const;
+    bool glTFLoader::getMaterialTextures(int matIdx, std::string& baseColorUri, std::string& normalUri,
+        std::string& metallicRoughnessUri, float& metallic, float& roughness) const;
 
 private:
     std::vector<Mesh> meshes_;

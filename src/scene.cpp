@@ -199,8 +199,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 Material newMat{};
                 newMat.color = glm::vec3(1.0f);
 
-                std::string baseColorUri, normalUri;
-                if (loader.getMaterialTextures(i, baseColorUri, normalUri)) {
+                std::string baseColorUri, normalUri, metallicRoughnessUri;
+                float metallic, roughness;
+                
+                if (loader.getMaterialTextures(i, baseColorUri, normalUri, metallicRoughnessUri, metallic, roughness)) {
+                    newMat.metallic = metallic;
+                    newMat.roughness = roughness;
+                    
                     // Load base color texture
                     if (!baseColorUri.empty()) {
                         std::string fullTexPath = dir + baseColorUri;
@@ -217,6 +222,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
                         newMat.hasNormalMap = true;
                         textures.push_back(loadTexture(fullTexPath));
                         //std::cout << "  Loaded normal map: " << fullTexPath << "\n";
+                    }
+
+                    // Load textures...
+                    if (!metallicRoughnessUri.empty()) {
+                        std::string fullTexPath = dir + metallicRoughnessUri;
+                        newMat.metallicRoughnessTextureID = textures.size();
+                        newMat.hasMetallicRoughnessTexture = true;
+                        textures.push_back(loadTexture(fullTexPath));
                     }
                 }
 

@@ -99,7 +99,8 @@ __host__ __device__ void bsdf_pdf(PathSegment& pathSegment,
     glm::vec3 normal, float& pdf)
 {
     float cosTheta = glm::max(0.f, glm::dot(pathSegment.ray.direction, normal));
-    pdf = cosTheta / PI;
+    //pdf = cosTheta / PI;
+    pdf = glm::max(cosTheta / PI, 0.001f);
 }
 
 
@@ -253,6 +254,9 @@ __host__ __device__ void bsdf(PathSegment& pathSegment,
     else if (m.hasRefractive) {
         btdf_specular(pathSegment, intersect, normal, pdf, m, rng);
     }
+    else if (m.metallic > 0.0f || m.roughness > 0.0f) {
+        bsdf_pbr(pathSegment, intersect, normal, pdf, m, rng);
+    }
     else {
         bsdf_diffuse(pathSegment, intersect, normal, pdf, m, rng);
     }
@@ -287,4 +291,142 @@ __host__ __device__ void scatterRay(
     float pdf;
     bsdf(pathSegment, intersect, normal, pdf, m, rng);
 
+}
+
+
+__host__ __device__ void bsdf_pbr(PathSegment& pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    float& pdf,
+    const Material& m,
+    thrust::default_random_engine& rng)
+{
+    glm::vec3 wo = -pathSegment.ray.direction;  // Outgoing (toward camera)
+
+    // Sample new direction (cosine-weighted hemisphere for diffuse)
+    glm::vec3 wi = cosineSampleHemisphere(normal, rng);
+
+    float cosTheta = glm::max(0.f, glm::dot(wi, normal));
+    pdf = glm::max(cosTheta / PI, 0.001f);
+
+    // Fresnel-Schlick approximation
+    glm::vec3 h = glm::normalize(wi + wo);
+    float VoH = glm::max(0.f, glm::dot(wo, h));
+    glm::vec3 F0 = glm::mix(glm::vec3(0.04f), m.color, m.metallic);
+    glm::vec3 F = F0 + (glm::vec3(1.0f) - F0) * powf(1.0f - VoH, 5.0f);
+
+    // Diffuse and specular mix based on metallic
+    glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - m.metallic);
+    glm::vec3 diffuse = kD * m.color / PI;
+
+    // Simple specular (you can add GGX for better quality)
+    float alpha = m.roughness * m.roughness;
+    glm::vec3 specular = F * (1.0f / (4.0f * cosTheta + 0.001f));
+
+    pathSegment.color *= (diffuse + specular) * cosTheta / pdf;
+    pathSegment.ray.origin = intersect + 0.001f * normal;
+    pathSegment.ray.direction = wi;
+}
+
+
+// GGX Normal Distribution Function
+__host__ __device__ float ggxNDF(const glm::vec3& n, const glm::vec3& h, float roughness) {
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH = glm::max(glm::dot(n, h), 0.0f);
+    float NdotH2 = NdotH * NdotH;
+
+    float denom = (NdotH2 * (a2 - 1.0f) + 1.0f);
+    denom = PI * denom * denom;
+
+    return a2 / glm::max(denom, 0.0001f);
+}
+
+// GGX Geometry Function (Smith's method)
+__host__ __device__ float ggxGeometry(float NdotV, float roughness) {
+    float a = roughness;
+    float k = (a * a) / 2.0f;
+
+    return NdotV / (NdotV * (1.0f - k) + k);
+}
+
+__host__ __device__ float ggxSmithG(const glm::vec3& n, const glm::vec3& v,
+    const glm::vec3& l, float roughness) {
+    float NdotV = glm::max(glm::dot(n, v), 0.0f);
+    float NdotL = glm::max(glm::dot(n, l), 0.0f);
+    return ggxGeometry(NdotV, roughness) * ggxGeometry(NdotL, roughness);
+}
+
+// Fresnel-Schlick
+__host__ __device__ glm::vec3 fresnelSchlick(float cosTheta, const glm::vec3& F0) {
+    return F0 + (glm::vec3(1.0f) - F0) * powf(glm::clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
+}
+
+// Complete GGX BRDF
+__host__ __device__ void bsdf_pbr_ggx(PathSegment& pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    float& pdf,
+    const Material& m,
+    thrust::default_random_engine& rng)
+{
+    glm::vec3 wo = -pathSegment.ray.direction;  // View direction
+
+    // Sample direction (importance sample GGX for specular, cosine-weighted for diffuse)
+    thrust::uniform_real_distribution<float> u01(0.0f, 1.0f);
+    float xi = u01(rng);
+
+    // Mix between diffuse and specular sampling based on metallic
+    bool sampleSpecular = xi > (1.0f - m.metallic) * 0.5f;
+
+    glm::vec3 wi;
+    if (sampleSpecular) {
+        // Importance sample GGX (simplified - just using cosine for now)
+        wi = cosineSampleHemisphere(normal, rng);
+    }
+    else {
+        // Diffuse sampling
+        wi = cosineSampleHemisphere(normal, rng);
+    }
+
+    float NdotL = glm::max(glm::dot(normal, wi), 0.0f);
+    float NdotV = glm::max(glm::dot(normal, wo), 0.0f);
+
+    if (NdotL < 0.0001f || NdotV < 0.0001f) {
+        pathSegment.remainingBounces = 0;
+        return;
+    }
+
+    glm::vec3 h = glm::normalize(wi + wo);
+    float VdotH = glm::max(glm::dot(wo, h), 0.0f);
+
+    // Fresnel
+    glm::vec3 F0 = glm::mix(glm::vec3(0.04f), m.color, m.metallic);
+    glm::vec3 F = fresnelSchlick(VdotH, F0);
+
+    // GGX components
+    float D = ggxNDF(normal, h, m.roughness);
+    float G = ggxSmithG(normal, wo, wi, m.roughness);
+
+    // Cook-Torrance specular BRDF
+    glm::vec3 specular = (D * G * F) / glm::max(4.0f * NdotV * NdotL, 0.0001f);
+
+    // Diffuse (energy conserving)
+    glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - m.metallic);
+    glm::vec3 diffuse = kD * m.color / PI;
+
+    // Combined BRDF
+    glm::vec3 brdf = diffuse + specular;
+
+    // PDF (cosine-weighted hemisphere)
+    pdf = NdotL / PI;
+
+    // Apply throughput
+    pathSegment.color *= brdf * NdotL / glm::max(pdf, 0.0001f);
+
+    // Clamp to prevent fireflies
+    pathSegment.color = glm::min(pathSegment.color, glm::vec3(10.0f));
+
+    pathSegment.ray.origin = intersect + 0.001f * normal;
+    pathSegment.ray.direction = wi;
 }
