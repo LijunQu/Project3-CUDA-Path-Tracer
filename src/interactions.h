@@ -98,22 +98,3 @@ __host__ __device__ void bsdf_pbr(PathSegment& pathSegment,
     float& pdf,
     const Material& m,
     thrust::default_random_engine& rng);
-
-
-__host__ __device__ float ggxNDF(const glm::vec3& n, const glm::vec3& h, float roughness);
-
-__host__ __device__ float ggxGeometry(float NdotV, float roughness);
-
-__host__ __device__ float ggxSmithG(const glm::vec3& n, const glm::vec3& v,
-    const glm::vec3& l, float roughness);
-
-__host__ __device__ glm::vec3 fresnelSchlick(float cosTheta, const glm::vec3& F0);
-
-__host__ __device__ void bsdf_pbr_ggx(PathSegment& pathSegment,
-    glm::vec3 intersect,
-    glm::vec3 normal,
-    float& pdf,
-    const Material& m,
-    thrust::default_random_engine& rng);
-
-
