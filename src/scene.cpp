@@ -21,7 +21,7 @@ Texture Scene::loadTexture(const std::string& filepath) {
     Texture tex;
     int channels;
 
-    std::cout << "Loading texture: " << filepath << "\n";
+    //std::cout << "Loading texture: " << filepath << "\n";
     unsigned char* data = stbi_load(filepath.c_str(), &tex.width, &tex.height, &channels, 3);
 
     if (!data) {
@@ -31,7 +31,7 @@ Texture Scene::loadTexture(const std::string& filepath) {
         return tex;
     }
 
-    std::cout << "Loaded texture: " << tex.width << "x" << tex.height << " (" << channels << " channels)\n";
+    //std::cout << "Loaded texture: " << tex.width << "x" << tex.height << " (" << channels << " channels)\n";
 
     // Allocate host memory and convert to float RGB
     size_t pixelCount = tex.width * tex.height;
@@ -207,7 +207,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
                         newMat.textureID = textures.size();
                         newMat.hasTexture = true;
                         textures.push_back(loadTexture(fullTexPath));
-                        std::cout << "  Loaded texture: " << fullTexPath << "\n";
+                        //std::cout << "  Loaded texture: " << fullTexPath << "\n";
                     }
 
                     // Load normal map
@@ -216,7 +216,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
                         newMat.normalMapID = textures.size();
                         newMat.hasNormalMap = true;
                         textures.push_back(loadTexture(fullTexPath));
-                        std::cout << "  Loaded normal map: " << fullTexPath << "\n";
+                        //std::cout << "  Loaded normal map: " << fullTexPath << "\n";
                     }
                 }
 
@@ -225,7 +225,16 @@ void Scene::loadFromJSON(const std::string& jsonName)
             }
 
             std::vector<MeshTriangle> newTriangles = loader.getTriangles();
-            std::cout << "Loaded " << newTriangles.size() << " triangles\n";
+            //std::cout << "Loaded " << newTriangles.size() << " triangles\n";
+
+            std::map<int, int> matCount;
+            for (const auto& tri : newTriangles) {
+                matCount[tri.gltfMaterialIndex]++;
+            }
+            //std::cout << "Material distribution:\n";
+            //for (const auto& [matId, count] : matCount) {
+                //std::cout << "  Material " << matId << ": " << count << " triangles\n";
+            //}
 
             // Apply material mapping and transform
             const auto& trans = p["TRANS"];
@@ -245,6 +254,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
                     tri.gltfMaterialIndex < gltfMatToSceneMat.size()) {
                     tri.materialId = gltfMatToSceneMat[tri.gltfMaterialIndex];
                 }
+
+                glm::mat4 finalTransform = transform;
 
                 // Apply transform
                 tri.v0 = glm::vec3(transform * glm::vec4(tri.v0, 1.0f));

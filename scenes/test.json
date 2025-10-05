@@ -16,8 +16,8 @@
         {
             "TYPE":"Diffuse",
             "RGB":[0.98, 0.98, 0.98],
-            "TEXTURE":"C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/models/Avocado_baseColor.png",
-            "NORMALMAP":"C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/models/Avocado_normal.png"
+            "TEXTURE":"C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/models/Corset_baseColor.png",
+            "NORMALMAP":"C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/models/Corset_normal.png"
         },
         "diffuse_red":
         {
@@ -60,19 +60,17 @@
         "UP":[0.0,1.0,0.0],
         "LENS_RADIUS": 0.0,
         "FOCAL_DISTANCE": 10.0,
-        "ENVMAP": "C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/envMaps/Frozen_Waterfall_Ref.hdr"
+        "ENVMAP": "C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/envMaps/fireplace_4k.hdr"
     },
     "Objects":
     [
-
-
         {
             "TYPE":"mesh",
-            "MATERIAL":"diffuse_model",
-            "FILEPATH":"C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/models/Avocado.gltf",
-            "TRANS":[0.0,0.0,0.0],
-            "ROTAT":[0.0,180.0,0.0],
-            "SCALE":[100.0,100.0,100.0]
+            "MATERIAL":"diffuse_white",
+            "FILEPATH":"C:/Users/lilya/Desktop/CIS565/Project3-CUDA-Path-Tracer/scenes/models/ABeautifulGame.gltf",
+            "TRANS":[0.0, 0.0, 0.0],
+            "ROTAT":[0.0, 0.0, 0.0],
+            "SCALE":[10.0, 10.0, 10.0]
         }
     ]
 }

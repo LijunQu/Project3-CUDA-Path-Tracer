@@ -7,7 +7,10 @@
 
 #include <iostream>
 #include <cstring>
-
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>  
 // ---------------- Implementation ----------------
 
 
@@ -71,13 +74,56 @@ bool glTFLoader::loadModel(const std::string& filename) {
 }
 
 void glTFLoader::processModel(const tinygltf::Model& model) {
-    // Iterate meshes / primitives and pull POSITION + indices
-    for (const auto& mesh : model.meshes) {
+    // Process the default scene (or scene 0)
+    int sceneIdx = model.defaultScene >= 0 ? model.defaultScene : 0;
+    if (sceneIdx >= 0 && sceneIdx < model.scenes.size()) {
+        const auto& scene = model.scenes[sceneIdx];
+
+        // Process each root node
+        for (int nodeIdx : scene.nodes) {
+            glm::mat4 transform(1.0f);  // Identity transform
+            processNode(model, nodeIdx, transform);
+        }
+    }
+}
+
+void glTFLoader::processNode(const tinygltf::Model& model, int nodeIdx, const glm::mat4& parentTransform) {
+    const auto& node = model.nodes[nodeIdx];
+
+    // Compute this node's local transform
+    glm::mat4 localTransform(1.0f);
+
+    if (node.matrix.size() == 16) {
+        // Node has a matrix - convert from column-major double array to glm::mat4
+        localTransform = glm::make_mat4(node.matrix.data());
+    }
+    else {
+        // Compose from T/R/S
+        if (node.translation.size() == 3) {
+            localTransform = glm::translate(localTransform,
+                glm::vec3(node.translation[0], node.translation[1], node.translation[2]));
+        }
+        if (node.rotation.size() == 4) {
+            // Quaternion: [x, y, z, w] in glTF, but glm::quat is (w, x, y, z)
+            glm::quat q(node.rotation[3], node.rotation[0], node.rotation[1], node.rotation[2]);
+            localTransform *= glm::mat4_cast(q);
+        }
+        if (node.scale.size() == 3) {
+            localTransform = glm::scale(localTransform,
+                glm::vec3(node.scale[0], node.scale[1], node.scale[2]));
+        }
+    }
+
+    glm::mat4 globalTransform = parentTransform * localTransform;
+
+    // If this node has a mesh, process all its primitives
+    if (node.mesh >= 0 && node.mesh < model.meshes.size()) {
+        const auto& mesh = model.meshes[node.mesh];
+
         for (const auto& prim : mesh.primitives) {
             Mesh out;
-
-
             out.gltfMaterialIndex = prim.material;
+            out.nodeTransform = globalTransform;
 
             // POSITION (required)
             auto it = prim.attributes.find("POSITION");
@@ -86,7 +132,6 @@ void glTFLoader::processModel(const tinygltf::Model& model) {
                 const tinygltf::BufferView& bv = model.bufferViews[acc.bufferView];
                 const tinygltf::Buffer& buf = model.buffers[bv.buffer];
 
-                // expect VEC3 float
                 if (acc.componentType != TINYGLTF_COMPONENT_TYPE_FLOAT || acc.type != TINYGLTF_TYPE_VEC3) {
                     std::cout << "Unsupported POSITION accessor format\n";
                 }
@@ -109,14 +154,10 @@ void glTFLoader::processModel(const tinygltf::Model& model) {
                     const size_t offs = bv.byteOffset + acc.byteOffset;
                     const float* ptr = reinterpret_cast<const float*>(&buf.data[offs]);
                     out.uvs.assign(ptr, ptr + acc.count * 2);
-                    //std::cout << "Loaded " << acc.count << " UV coordinates\n";
                 }
                 else {
                     std::cout << "Unsupported TEXCOORD format\n";
                 }
-            }
-            else {
-                std::cout << "No UV coordinates found in mesh\n";
             }
 
             // Indices
@@ -149,7 +190,7 @@ void glTFLoader::processModel(const tinygltf::Model& model) {
                 }
             }
             else {
-                // no index accessor => generate 0..N-1 (triangulated required by spec in practice)
+                // no index accessor => generate 0..N-1
                 const size_t vtxCount = out.positions.size() / 3;
                 out.indices.resize(vtxCount);
                 for (size_t i = 0; i < vtxCount; ++i) out.indices[i] = static_cast<uint32_t>(i);
@@ -158,8 +199,12 @@ void glTFLoader::processModel(const tinygltf::Model& model) {
             meshes_.push_back(std::move(out));
         }
     }
-}
 
+    // Recursively process children
+    for (int childIdx : node.children) {
+        processNode(model, childIdx, globalTransform);
+    }
+}
 std::vector<MeshTriangle> glTFLoader::getTriangles() const {
     std::vector<MeshTriangle> tris;
     for (const auto& m : meshes_) {
@@ -167,10 +212,14 @@ std::vector<MeshTriangle> glTFLoader::getTriangles() const {
         // assume triangles
         for (size_t i = 0; i + 2 < m.indices.size(); i += 3) {
             MeshTriangle t;
-            t.v0 = getVertex(m, m.indices[i + 0]);
-            t.v1 = getVertex(m, m.indices[i + 1]);
-            t.v2 = getVertex(m, m.indices[i + 2]);
+            // Apply node transform when extracting vertices
+            glm::vec3 v0 = getVertex(m, m.indices[i + 0]);
+            glm::vec3 v1 = getVertex(m, m.indices[i + 1]);
+            glm::vec3 v2 = getVertex(m, m.indices[i + 2]);
 
+            t.v0 = glm::vec3(m.nodeTransform * glm::vec4(v0, 1.0f));
+            t.v1 = glm::vec3(m.nodeTransform * glm::vec4(v1, 1.0f));
+            t.v2 = glm::vec3(m.nodeTransform * glm::vec4(v2, 1.0f));
 
             if (hasUVs) {
                 t.uv0 = getUV(m, m.indices[i + 0]);

@@ -29,6 +29,8 @@ public:
         std::vector<uint32_t> indices;
         std::vector<float> uvs;
         int gltfMaterialIndex = -1;
+
+        glm::mat4 nodeTransform = glm::mat4(1.0f);
     };
 
     glTFLoader() = default;
@@ -53,6 +55,7 @@ private:
     }
 
     void processModel(const tinygltf::Model& model);
+    void glTFLoader::processNode(const tinygltf::Model& model, int nodeIdx, const glm::mat4& parentTransform);
 
     glm::vec2 getUV(const Mesh& mesh, uint32_t index) const {
         if (mesh.uvs.empty()) return glm::vec2(0.0f);
