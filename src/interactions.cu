@@ -254,9 +254,9 @@ __host__ __device__ void bsdf(PathSegment& pathSegment,
     else if (m.hasRefractive) {
         btdf_specular(pathSegment, intersect, normal, pdf, m, rng);
     }
-    else if (m.metallic > 0.0f || m.roughness > 0.0f) {
-        bsdf_pbr(pathSegment, intersect, normal, pdf, m, rng);
-    }
+    //else if (m.metallic > 0.0f || m.roughness > 0.0f) {
+    //    bsdf_pbr(pathSegment, intersect, normal, pdf, m, rng);
+    //}
     else {
         bsdf_diffuse(pathSegment, intersect, normal, pdf, m, rng);
     }

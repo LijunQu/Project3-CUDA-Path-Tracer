@@ -40,3 +40,57 @@ CUDA Path Tracer
 <p align="center">
   <img src="img/abeautifulgame.png" width="1000" />
 </p>
+
+## Introduction
+
+I built a CUDA path tracer into a feature-complete, toggleable renderer. Core work includes 
+* BSDF shading (diffuse, perfect specular), 
+* stochastic AA, 
+* stream-compacted path termination, 
+* material-based sorting. 
+
+I added 
+* physically-based refraction, 
+* depth of field, 
+* HDRI environment lighting, 
+* PBR texture mapping on glTF meshes (albedo/normal/metal-rough). 
+
+For performance, I implemented 
+* Russian Roulette 
+* a CPU-built BVH with iterative GPU traversal, 
+* integrated Intel Open Image Denoiser for cleaner images at low spp. 
+
+I profiled with Nsight and reported rays-per-bounce and per-kernel stacked bars, showing compaction/RR benefits (especially in closed scenes), reduced intersection time with BVH on heavy meshes, and clear quality gains from DoF, refraction, and denoising.
+
+
+## Features
+
+### BSDFs
+
+* #### Diffuse
+
+<p align="center">
+  <img src="img/cornelldiff.png" width="300" />
+</p>
+
+* #### Specular
+<p align="center">
+  
+  | <img width="300px" src="img/cornellspec.png"> | <img width="300px" src="img/cornellspec2.png"> |
+  |:--:|:--:|
+  
+</p>
+
+* #### Refraction
+<p align="center">
+  
+  | <img width="300px" src="img/cornelltrans.png"> | <img width="300px" src="img/cornelltrans2.png"> | <img width="300px" src="img/cornelltrans3.png"> | <img width="300px" src="img/cornelltrans4.png"> |
+  |:--:|:--:|:--:|:--:|
+  
+</p>
+
+I implemented specular transmission for dielectrics (glass/water) as a delta BSDF. At a surface hit, I first detect whether the ray is entering or exiting using cosThetaI = dot(-wi, n). Based on the sign, I flip the shading normal if needed and set the index-of-refraction pair (ηi, ηt) accordingly. I then try to compute the transmitted direction with Snell’s law (glm::refract(wi, n, ηi/ηt)). If refraction is impossible (total internal reflection), I fall back to perfect mirror reflection.
+
+For energy split, I evaluate the Fresnel term (Schlick) to get the reflectance F. I stochastically choose between reflection and transmission (probability F vs. 1−F), treating the chosen lobe as a delta event (pdf = 1). When transmitting, I scale the path throughput by (1−F) * transmissionColor * (ηt/ηi)^2 (solid-angle change), and when reflecting by F * specularColor. The new ray origin is offset by an epsilon along the chosen direction to avoid self-intersections, and the path continues with one fewer bounce. (Rough/ microfacet transmission is not used—this is perfect, smooth glass.)
+
+Reference: [PBRv4 9.3](https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission)

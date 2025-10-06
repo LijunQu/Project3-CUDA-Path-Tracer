@@ -3,8 +3,8 @@
 #include "scene.h"
 #include "utilities.h"
 
-#define doDenoise 1
-#define doRussianRoulette 1
+#define doDenoise 0
+#define doRussianRoulette 0
 
 void InitDataContainer(GuiDataContainer* guiData);
 void pathtraceInit(Scene *scene);
