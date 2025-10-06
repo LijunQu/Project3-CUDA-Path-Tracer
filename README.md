@@ -10,6 +10,7 @@ CUDA Path Tracer
 * [Intro](#Introduction)
 * [Features](#Features)
   * [BSDFs](#BSDFs)
+  * [Physically-based Depth-of-field](#Physically-based-Depth-of-field)
   * [Integrators](#Integrators)
   * [Mesh and Texture Loading](#Mesh-Loading)
   * [Denoiser](#OIDN)
@@ -94,3 +95,20 @@ I implemented specular transmission for dielectrics (glass/water) as a delta BSD
 For energy split, I evaluate the Fresnel term (Schlick) to get the reflectance F. I stochastically choose between reflection and transmission (probability F vs. 1−F), treating the chosen lobe as a delta event (pdf = 1). When transmitting, I scale the path throughput by (1−F) * transmissionColor * (ηt/ηi)^2 (solid-angle change), and when reflecting by F * specularColor. The new ray origin is offset by an epsilon along the chosen direction to avoid self-intersections, and the path continues with one fewer bounce. (Rough/ microfacet transmission is not used—this is perfect, smooth glass.)
 
 Reference: [PBRv4 9.3](https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission)
+
+
+### Physically-based Depth-of-field
+
+<p align="center">
+  
+  | <img width="300px" src="img/nodof.png"> | <img width="300px" src="img/dof4.png"> | <img width="300px" src="img/dof3.png"> | <img width="300px" src="img/dof2.png"> | <img width="300px" src="img/dof1.png"> |
+  |:--:|:--:|:--:|:--:|:--:|
+  | *No DOF* | *Lens Radius: 0.15, Focal Dist: 10.0* | *Lens Radius: 0.8, Focal Dist: 12.0* | *Lens Radius: 0.3, Focal Dist: 12.0* |
+  
+</p>
+
+I use a thin-lens camera with two parameters: lensRadius (aperture) and focalDist. For each pixel sample, I first form the usual pinhole ray to a jittered sensor sample. I then compute the focal point by intersecting that ray with a plane at focalDist along the camera forward axis. Next, I sample a point on the circular lens using concentric-disk sampling:
+lensPos = eye + lensRadius * (x * camRight + y * camUp).
+The final primary ray is origin = lensPos, direction = normalize(focalPoint - origin). Throughput is unchanged (camera sampling only); total blur increases with lensRadius, and setting lensRadius = 0 reduces to a pinhole camera. I offset the origin by a small epsilon along the direction to avoid self-intersection. (A circular aperture is assumed; no polygonal bokeh yet.)
+
+Reference: [PBRv4 5.2](https://pbr-book.org/4ed/Cameras_and_Film/Projective_Camera_Models#TheThinLensModelandDepthofField)
