@@ -26,13 +26,13 @@ CUDA Path Tracer
 ######(https://sketchfab.com/3d-models/matilda-7ddedfb652bd4ea091bc3de27f98fc02)
 
 <p align="center">
-  <img src="img/canthedral.png" width="1000" />
+  <img src="img/cathedral.png" width="1000" />
 </p>
 
 ######(https://sketchfab.com/3d-models/cathedral-faed84a829114e378be255414a7826ca)
 
 <p align="center">
-  <img src="img/silksong.png" width="1000" />
+  <img src="img/sliksong.png" width="1000" />
   </p>
 
 ######(https://sketchfab.com/3d-models/shaw-hornet-hollow-knight-silksong-670a87a9234c40bc9c2a4f274f6d8cc1)
