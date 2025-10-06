@@ -101,8 +101,8 @@ Reference: [PBRv4 9.3](https://pbr-book.org/4ed/Reflection_Models/Specular_Refle
 
 <p align="center">
   
-  | <img width="300px" src="img/nodof.png"> | <img width="300px" src="img/dof4.png"> | <img width="300px" src="img/dof3.png"> | <img width="300px" src="img/dof2.png"> | <img width="300px" src="img/dof1.png"> |
-  |:--:|:--:|:--:|:--:|:--:|
+  | <img width="300px" src="img/nodof.png"> | <img width="300px" src="img/dof3.png"> | <img width="300px" src="img/dof2.png"> | <img width="300px" src="img/dof1.png"> |
+  |:--:|:--:|:--:|:--:|
   | *No DOF* | *Lens Radius: 0.15, Focal Dist: 10.0* | *Lens Radius: 0.8, Focal Dist: 12.0* | *Lens Radius: 0.3, Focal Dist: 12.0* |
   
 </p>
