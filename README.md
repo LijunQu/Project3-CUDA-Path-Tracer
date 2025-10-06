@@ -200,6 +200,15 @@ Restrictions / current limits
 
 
 <p align="center">
+  
+  | <img width="300px" src="img/allLoaded.png"> | <img width="300px" src="img/texture.png"> | <img width="300px" src="img/normal.png"> |
+  |:--:|:--:|:--:|
+  | *Loaded all mappings* | *Only loaded base color* | *Only loaded normal* |
+  
+</p>
+
+
+<p align="center">
   | <img width="300px" src="img/nooidn.png"> | <img width="300px" src="img/oidn.png"> |
   |:--:|:--:|
   | *No OIDN applied* | *OIDN applied* |
@@ -229,7 +238,7 @@ Russian Roulette (RR) probabilistically stops low-contribution paths to save wor
 Reference: [PBRv3 13.7](https://pbr-book.org/3ed-2018/Monte_Carlo_Integration/Russian_Roulette_and_Splitting)
 
 <p align="center">
-  <img src="img/rr_fps_by_model.png" width="300" />
+  <img src="img/rr_fps_by_model.png" width="1000" />
 </p>
 
 Why RR improves FPS. By probabilistically terminating low-contribution paths after a few bounces, RR reduces the average path length—fewer intersections, fewer shading evals, and less memory traffic per frame. It also removes “straggler” rays, improving warp coherence and making stream compaction more effective. The speedup is largest in closed scenes (many long, dim bounces) and smaller—but still positive—in open scenes.
