@@ -3,7 +3,7 @@
 #include "scene.h"
 #include "utilities.h"
 
-#define doDenoise 0
+#define doDenoise 1
 #define doRussianRoulette 0
 
 void InitDataContainer(GuiDataContainer* guiData);
