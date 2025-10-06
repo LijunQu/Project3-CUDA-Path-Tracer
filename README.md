@@ -3,11 +3,37 @@ CUDA Path Tracer
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
-* (TODO) YOUR NAME HERE
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Lijun Qu
+  * [LinkedIn](https://www.linkedin.com/in/lijun-qu-398375251/), [personal website](www.lijunqu.com).
+* Tested on: Windows 11, i7-14700HX (2.10 GHz) 32GB, Nvidia GeForce RTX 4060 Laptop
 
-### (TODO: Your README)
+* [Intro](#Introduction)
+* [Features](#Features)
+  * [BSDFs](#BSDFs)
+  * [Integrators](#Integrators)
+  * [Mesh and Texture Loading](#Mesh-Loading)
+  * [Denoiser](#OIDN)
+* [Perf Analysis](#Perf-Analysis)
+* [Extras and Bloopers](#Extras-and-Bloopers)
+* [Credits](#Credits)
+-----
 
-*DO NOT* leave the README to the last minute! It is a crucial part of the
-project, and we will not be able to grade you without a good README.
+##### Example Renders:
+<p align="center">
+  <img src="img/matilda.png" width="1000" />
+  * [Source](https://sketchfab.com/3d-models/matilda-7ddedfb652bd4ea091bc3de27f98fc02)
+</p>
 
+<p align="center">
+  <img src="img/canthedral.png" width="1000" />
+  * [Source](https://sketchfab.com/3d-models/cathedral-faed84a829114e378be255414a7826ca)
+</p>
+
+<p align="center">
+  <img src="img/silksong.png" width="1000" />
+  * [Source](https://sketchfab.com/3d-models/shaw-hornet-hollow-knight-silksong-670a87a9234c40bc9c2a4f274f6d8cc1)
+</p>
+
+<p align="center">
+  <img src="img/abeautifulgame.png" width="1000" />
+</p>
