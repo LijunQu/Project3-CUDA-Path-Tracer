@@ -198,20 +198,12 @@ Restrictions / current limits
 
 ### OIDN
 
-
 <p align="center">
-  
-  | <img width="300px" src="img/allLoaded.png"> | <img width="300px" src="img/texture.png"> | <img width="300px" src="img/normal.png"> |
-  |:--:|:--:|:--:|
-  | *Loaded all mappings* | *Only loaded base color* | *Only loaded normal* |
-  
-</p>
 
-
-<p align="center">
   | <img width="300px" src="img/nooidn.png"> | <img width="300px" src="img/oidn.png"> |
   |:--:|:--:|
   | *No OIDN applied* | *OIDN applied* |
+  
 </p>
 
 I integrated Intel Open Image Denoise (OIDN) as a post-process on my path-traced output. OIDN is an open-source, CPU-based filter designed specifically for Monte Carlo noise.
@@ -228,9 +220,11 @@ Reference: [Intel OIDN](https://www.openimagedenoise.org/)
 ### Russian Roulette Path Termination
 
 <p align="center">
+
   | <img width="300px" src="img/norr.png"> | <img width="300px" src="img/rr.png"> |
   |:--:|:--:|
   | *No RR applied* | *RR applied* |
+
 </p>
 
 Russian Roulette (RR) probabilistically stops low-contribution paths to save work while keeping the estimator unbiased. When a path survives, its throughput is scaled by 1/p (the survival probability) so the expected contribution remains the same.
