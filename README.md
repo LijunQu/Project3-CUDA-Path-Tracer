@@ -20,7 +20,7 @@ CUDA Path Tracer
 * [Extras and Bloopers](#Extras-and-Bloopers)
 -----
 
-##### Example Renders:
+### Example Renders:
 <p align="center">
   <img src="img/matilda.png" width="1000" />
 </p>
@@ -132,11 +132,11 @@ This path tracer supports .glTF 3D scene loading and rendering. This was done th
 * Triangular Mesh Loading
 * Material Loading
 * Albedo Texture Loading and Sampling
-* Pbject Space Normal Map Loading and Sampling
+* Object Space Normal Map Loading and Sampling
+* Materials do not need to be mapped manually in your Path Tracer .json file. That is, if your glTF file has 4 unique materials, then you just include the gltf as a mesh in your .json file. You don't need to include the materials accordingly to allow for the 4 materials to appear in the render.
 
 There are a few restrictions however:
 * The mesh must be triangulated. Only triangles are supported currently.
-* Materials must be mapped manually in your Path Tracer .json file. That is, if your glTF file has 4 unique materials, then you must define 4 materials in your .json file accordingly to allow for the 4 materials to appear in the render.
 
 
 ---
@@ -203,7 +203,7 @@ Restrictions / current limits
   | <img width="300px" src="img/nooidn.png"> | <img width="300px" src="img/oidn.png"> |
   |:--:|:--:|
   | *No OIDN applied* | *OIDN applied* |
-  
+
 </p>
 
 I integrated Intel Open Image Denoise (OIDN) as a post-process on my path-traced output. OIDN is an open-source, CPU-based filter designed specifically for Monte Carlo noise.
@@ -238,3 +238,45 @@ Reference: [PBRv3 13.7](https://pbr-book.org/3ed-2018/Monte_Carlo_Integration/Ru
 Why RR improves FPS. By probabilistically terminating low-contribution paths after a few bounces, RR reduces the average path length—fewer intersections, fewer shading evals, and less memory traffic per frame. It also removes “straggler” rays, improving warp coherence and making stream compaction more effective. The speedup is largest in closed scenes (many long, dim bounces) and smaller—but still positive—in open scenes.
 
 
+---
+
+###  BVH
+
+<p align="center">
+  <img src="img/bvh_nobvh_with_fallback.png" width="1000" />
+</p>
+
+I use a BVH(Bounding Volume Hierarchy) to accelerate ray–triangle tests by organizing the mesh into a tree of tight AABB nodes. Rays traverse the tree, intersecting a handful of boxes and only testing triangles in the hit leaves—turning a naïve O(N) scan into something closer to O(log N) per ray. The BVH is built on the CPU and traversed iteratively on the GPU with early-out using the current closest tMax, which cuts intersection work and improves cache/warp coherence. This made a practical difference: before BVH, even the Suzanne (~3,936 tris) mesh was sluggish enough that I set its material to emissive just to verify it loaded; after BVH, it renders smoothly with normal materials.
+
+<p align="center">
+  <img src="img/beforebvh.png" width="300" />
+</p>
+
+
+Reference: [BVH](https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/)
+
+
+-----
+
+## Extras and Bloopers
+
+#### Bloopers
+
+Here are some bloopers I encountered:
+
+<p align="center">
+
+  | <img width="300px" src="img/Blooper1.png"> | <img width="300px" src="img/Blooper2.png"> | <img width="300px" src="img/Blooper3.png"> | <img width="300px" src="img/Blooper4.png"> |
+  |:--:|:--:|:--:|:--:|
+
+</p>
+
+
+#### Future Work!
+
+Forsyth Triangle Reordering (from my Qualcomm internship).
+I previously analyzed the Forsyth index-buffer reordering algorithm (CPU pre-process that improves vertex-cache locality). I want to port a variant into this path tracer to test whether triangle order inside BVH leaves (and mesh buffers) improves memory locality/L2 hit rate during ray–triangle tests. Plan: build a CPU pass that reorders indices with Forsyth (or a cache-friendly heuristic), rebuild the BVH, and compare FPS, intersect kernel time, global load transactions, and L2 hit rate vs. baseline.
+
+
+Why FPS isn’t monotonic with triangle count.
+In my measurements, higher-triangle meshes sometimes run faster than lower-triangle ones. I suspect factors beyond triangle count dominate: spatial distribution & scale (how much of the BVH the rays traverse), camera framing (on-screen coverage), material/texture cost, ray coherence (affected by DoF/refraction), and leaf sizes/SPLITs from BVH build. I plan to run controlled studies that normalize scene bounds and camera, vary mesh world-scale, and log nodes visited per ray, leaf hits, and BSDF/texture time to isolate which factors drive FPS.
